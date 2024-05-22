@@ -4,7 +4,7 @@ import json
 import csv
 
 # Load the JSON data from the file
-with open("response_pretty.json", "r") as file:
+with open("res.json", "r") as file:
     data = json.load(file)
 
 # Assuming the data is stored in a list under the 'pairs' key
@@ -26,7 +26,7 @@ for pair in first_100_pairs:
     pair_address = pair['pairAddress']
     request_url = base_url.format(chain_id, pair_address)
     response = requests.get(request_url, headers=headers)
-    print(request_url)
+    print(response.json())
     if response.status_code == 200:
 
         print(f"Data retrieved successfully for pair address: {pair_address} on chain {chain_id}")
