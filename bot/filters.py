@@ -47,3 +47,10 @@ class PrivateChat(Filter):
         if message.chat.type == 'private' and subscriber is None:
             return True
         return False
+
+
+class SubscribeCallback(Filter):
+    async def __call__(self, call: CallbackQuery):
+        if call.data == 'subscribe':
+            return True
+        return False

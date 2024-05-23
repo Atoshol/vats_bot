@@ -134,3 +134,15 @@ async def get_subscriber_button():
     kb = InlineKeyboardMarkup(inline_keyboard=url_button)
 
     return kb
+
+
+async def get_subscriber_menu():
+    buttons = [[InlineKeyboardButton(text='Settings',
+                                     callback_data='settings'),
+                InlineKeyboardButton(text='Payment',
+                                     callback_data='payment')]]
+
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    return kb
+

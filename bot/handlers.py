@@ -16,10 +16,11 @@ from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from bot.main import dp, bot, db_clients, db_messages
 from aiogram.fsm.context import FSMContext
 from bot.states import AdminState
-from bot.filters import IsAdmin, BackToMainMenu, IsSubscriber, PrivateChat
+from bot.filters import IsAdmin, BackToMainMenu, IsSubscriber, PrivateChat, SubscribeCallback
 from bot.keyboards import get_clients_kb
 from utils.functions import find_closest_time_frame, get_data, get_history, escape_markdown_v2, \
     get_display_message
+from db.facade import DB
 
 # logging.basicConfig(filename='logs.log', level=logging.INFO,
 #                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -458,7 +459,8 @@ async def handle_admin_message(message: Message, state: FSMContext):
 
 @dp.message(IsSubscriber())
 async def handle_subscriber_message(message: Message):
-    pass
+    user_id = message.from_user.id
+    user_settings = await DB.user_settings.read(id_=user_id)
 
 
 @dp.message(PrivateChat())
@@ -466,6 +468,16 @@ async def handle_private_chat(message: Message):
     kb = await keyboards.get_subscriber_button()
     await message.answer(text=texts.not_subscribed_user,
                          reply_markup=kb)
+
+
+@dp.callback_query(SubscribeCallback())
+async def register_user(call: CallbackQuery):
+    user_id = call.from_user.id
+    today
+    exp_date =
+    user_data = {'id': user_id}
+    await DB.user_crud.create()
+
 
 
 async def exe_bot():
