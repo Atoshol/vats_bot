@@ -146,3 +146,16 @@ async def get_subscriber_menu():
 
     return kb
 
+
+async def get_subscriber_plans_kb():
+    buttons = [[InlineKeyboardButton(text='1 month',
+                                     callback_data='1'),
+                InlineKeyboardButton(text='3 months',
+                                     callback_data='3'),
+                InlineKeyboardButton(text='6 months',
+                                     callback_data='6')
+                ]]
+
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    return kb

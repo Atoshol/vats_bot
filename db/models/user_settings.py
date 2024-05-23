@@ -7,8 +7,9 @@ from decorators.db_session import db_session
 class UserSettings(Base):
     __tablename__ = 'user_settings'
 
-    id = Column(BigInteger, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey('user.id'), index=True)
+    # id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
+    # user_id = Column(Integer, ForeignKey('user.id'), index=True, primary_key=True)
+    id = Column(Integer, ForeignKey('user.id'), index=True, primary_key=True)
 
     market_cap_max = Column(BigInteger, nullable=True, default=500000)
     market_cap_min = Column(BigInteger, nullable=True, default=50000)
@@ -32,6 +33,8 @@ class UserSettings(Base):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
+    def as_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
 
 class UserSettingsCRUD(AsyncCRUD):
     def __init__(self):

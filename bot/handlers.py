@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from bot.main import dp, bot, db_clients, db_messages
 from aiogram.fsm.context import FSMContext
-from bot.states import AdminState
+from bot.states import AdminState, PotentialSubscriber
 from bot.filters import IsAdmin, BackToMainMenu, IsSubscriber, PrivateChat, SubscribeCallback
 from bot.keyboards import get_clients_kb
 from utils.functions import find_closest_time_frame, get_data, get_history, escape_markdown_v2, \
@@ -461,6 +461,7 @@ async def handle_admin_message(message: Message, state: FSMContext):
 async def handle_subscriber_message(message: Message):
     user_id = message.from_user.id
     user_settings = await DB.user_settings.read(id_=user_id)
+    print(user_settings)
 
 
 @dp.message(PrivateChat())
@@ -471,13 +472,37 @@ async def handle_private_chat(message: Message):
 
 
 @dp.callback_query(SubscribeCallback())
-async def register_user(call: CallbackQuery):
-    user_id = call.from_user.id
-    today
-    exp_date =
-    user_data = {'id': user_id}
-    await DB.user_crud.create()
+async def choose_plan_handler(call: CallbackQuery, state: FSMContext):
+    kb = await keyboards.get_subscriber_plans_kb()
+    await call.message.edit_text(text=texts.subscribe_plans,
+                                 reply_markup=kb)
 
+    await state.set_state(PotentialSubscriber.choosing_sub_plan)
+
+
+@dp.callback_query(PotentialSubscriber.choosing_sub_plan)
+async def register_user(call: CallbackQuery):
+    chosen_plan = call.data
+    months_mapper = {'1': 2592000,
+                     '3': 7776000,
+                     '6': 15552000}
+
+    months = months_mapper.get(chosen_plan)
+
+    user_id = call.from_user.id
+    username = call.from_user.username
+    today = int(time.time())
+    exp_date = today + months
+    user_data = {'id': user_id,
+                 'username': username,
+                 'payed': '+',
+                 'sub_expire_time': exp_date}
+
+    await DB.user_crud.create(**user_data)
+    settings_data = {'id': user_id}
+    await DB.user_settings_crud.create(**settings_data)
+
+    user = await DB.user_crud.read(id_=user_id)
 
 
 async def exe_bot():

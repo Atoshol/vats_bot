@@ -12,7 +12,7 @@ class DB:
 
     admin_crud = AdminCRUD()
     user_crud = UserCRUD()
-    user_settings = UserSettingsCRUD()
+    user_settings_crud = UserSettingsCRUD()
 
     message_crud = MessageCRUD()
     messageIndex_crud = MessageLastIndexCRUD()

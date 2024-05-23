@@ -29,3 +29,9 @@ generating_meditation = "Generating meditation..."
 not_subscribed_user = ("Hi, {}!\n\n"
                        "You are not subscriber and can't access any features.\n\n"
                        "Please press button below to become a subscriber!")
+
+subscribe_plans = ('Available subscription plans:\n\n'
+                   '1 month - 10$/month\n'
+                   '3 months - 8$/month\n'
+                   '6 months - 6$/month\n\n'
+                   'Press button below to choose:')

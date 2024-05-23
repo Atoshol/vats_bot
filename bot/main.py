@@ -9,7 +9,7 @@ from db.models.client import ClientCRUD
 
 storage = MemoryStorage()
 dp = Dispatcher()
-bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN_V2))
+bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 db_messages = MessageCRUD()
 db_clients = ClientCRUD()
 db_last_message = MessageLastIndexCRUD()

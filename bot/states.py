@@ -20,3 +20,7 @@ class UserState(StatesGroup):
 
 class SubscriberState(StatesGroup):
     pass
+
+
+class PotentialSubscriber(StatesGroup):
+    choosing_sub_plan = State()
