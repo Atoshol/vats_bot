@@ -23,7 +23,7 @@ class UserSettings(Base):
     transaction_count_5_minute_min = Column(BigInteger, nullable=True, default=10)
     transaction_count_1_hour_min = Column(BigInteger, nullable=True, default=10)
 
-    holders_min = Column(BigInteger, nullable=True)
+    holders_min = Column(BigInteger, nullable=True, default=25)
     renounced = Column(Boolean, nullable=True, default=True)
 
     include_old_pairs = Column(DateTime, nullable=True, default=func.now())
