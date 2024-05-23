@@ -9,6 +9,9 @@ class MessageLastIndex(Base):
     id = Column(Integer, primary_key=True)
     message_id = Column(Integer, nullable=True)
 
+    def as_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
 
 class Message(Base):
     __tablename__ = 'message'

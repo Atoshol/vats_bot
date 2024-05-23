@@ -1,3 +1,5 @@
+from pprint import pprint
+
 import websocket
 import json
 import ssl
@@ -28,17 +30,19 @@ def on_message(ws, message):
     data = json.loads(message)
     pairs = data['pairs']
     for i in pairs:
+        pprint(i)
         address = i['baseToken']['address']
-        if address not in existing_addresses:
-            print(f"New data saved: {address}")
-            # Save the prettified JSON to a file
-            with open("response_pretty.json", "a") as json_file:
-                json_file.write(json.dumps(data, indent=4, sort_keys=True) + '\n')
-            # Append the new address to CSV and add it to the existing addresses set
-            append_address_to_csv(csv_filename, address)
-            existing_addresses.add(address)
-        else:
-            print(f"Duplicate address found: {address}, not saving.")
+        name = i['baseToken']['name']
+        symbol = i['baseToken']['symbol']
+        price_usd = i['price']
+        liquidity_usd = i['liquidity']['usd']
+        chain_id = i['chainId']
+        dex_id = i['dexId']
+        price_change_5m = i['priceChange']['m5']
+        price_change_1h = i['priceChange']['1h']
+        price_change_24h = i['priceChange']['24h']
+        volume_1h = i['volume']['1h']
+        volume_24h = i['volume']['24h']
 
 
 def on_error(ws, error):
