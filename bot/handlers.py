@@ -460,7 +460,7 @@ async def handle_admin_message(message: Message, state: FSMContext):
 @dp.message(IsSubscriber())
 async def handle_subscriber_message(message: Message):
     user_id = message.from_user.id
-    user_settings = await DB.user_settings.read(id_=user_id)
+    user_settings = await DB.user_settings_crud.read(id_=user_id)
     print(user_settings)
 
 
@@ -502,7 +502,24 @@ async def register_user(call: CallbackQuery):
     settings_data = {'id': user_id}
     await DB.user_settings_crud.create(**settings_data)
 
-    user = await DB.user_crud.read(id_=user_id)
+    user_settings = await DB.user_settings_crud.read(id_=user_id)
+    print(user_settings.as_dict())
+    message_text = texts.user_settings.format(user_settings.market_cap_max,
+                                              user_settings.market_cap_min,
+                                              user_settings.volume_5_minute_min,
+                                              user_settings.volume_1_hour_min,
+                                              user_settings.liquidity_min,
+                                              user_settings.liquidity_max,
+                                              user_settings.price_change_5_minute_min,
+                                              user_settings.price_change_1_hour_min,
+                                              user_settings.transaction_count_5_minute_min,
+                                              user_settings.transaction_count_1_hour_min,
+                                              user_settings.holders_min,
+                                              user_settings.renounced)
+
+    kb = await keyboards.get_subscriber_menu()
+    await call.message.edit_text(text=message_text,
+                                 reply_markup=kb)
 
 
 async def exe_bot():

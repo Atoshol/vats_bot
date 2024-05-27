@@ -35,3 +35,19 @@ subscribe_plans = ('Available subscription plans:\n\n'
                    '3 months - 8$/month\n'
                    '6 months - 6$/month\n\n'
                    'Press button below to choose:')
+
+
+user_settings = ('Here is you current settings:\n\n'
+                 '- market cap max: {}\n'
+                 '- market cap min: {}\n'
+                 '- volume 5 minute_min: {}\n'
+                 '- volume 1 hour_min: {}\n'
+                 '- liquidity min: {}\n'
+                 '- liquidity max: {}\n'
+                 '- price change 5 minute min: {}\n'
+                 '- price_change 1 hour min: {}\n'
+                 '- transaction count 5 minute min: {}\n'
+                 '- transaction count 1 hour min: {}\n'
+                 '- holders min: {}\n'
+                 '- renounced: {}\n\n'
+                 'To change settings press button below.')
