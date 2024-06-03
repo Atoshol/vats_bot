@@ -1,4 +1,4 @@
-from sqlalchemy import (Column, String, select, BigInteger, DateTime, func, Integer, ForeignKey)
+from sqlalchemy import (Column, String, select, BigInteger, DateTime, func, Integer, ForeignKey, Boolean)
 from db.crud import AsyncCRUD
 from db.engine import Base
 from decorators.db_session import db_session
@@ -9,7 +9,7 @@ class User(Base):
 
     id = Column(BigInteger, primary_key=True, index=True)
     username = Column(String, nullable=True)
-    payed = Column(String, nullable=True)
+    payed = Column(Boolean, nullable=True)
     sub_expire_time = Column(BigInteger)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
