@@ -15,12 +15,14 @@ from datetime import datetime, timedelta
 from aiogram.types import Message, CallbackQuery, BufferedInputFile
 from bot.main import dp, bot, db_clients, db_messages
 from aiogram.fsm.context import FSMContext
-from bot.states import AdminState, PotentialSubscriber
-from bot.filters import IsAdmin, BackToMainMenu, IsSubscriber, PrivateChat, SubscribeCallback
+from bot.states import AdminState, PotentialSubscriber, SubscriberState
 from bot.keyboards import get_clients_kb
 from utils.functions import find_closest_time_frame, get_data, get_history, escape_markdown_v2, \
     get_display_message
 from db.facade import DB
+import bot.filters as filters
+from aiogram.types import ChatMemberUpdated
+
 
 # logging.basicConfig(filename='logs.log', level=logging.INFO,
 #                     format='%(asctime)s - %(levelname)s - %(message)s')
@@ -167,7 +169,7 @@ async def handle_main_menu_callback(call: CallbackQuery, state: FSMContext):
         await state.set_state(AdminState.message_preview)
 
 
-@dp.callback_query(BackToMainMenu())
+@dp.callback_query(filters.BackToMainMenu())
 async def handle_back_to_main_menu(call: CallbackQuery, state: FSMContext):
     await state.clear()
     await state.set_state(AdminState.main_menu)
@@ -440,7 +442,7 @@ async def handle_new_url_callback(call: CallbackQuery, state: FSMContext):
         await state.set_state(AdminState.adding_message)
 
 
-@dp.message(IsAdmin())
+@dp.message(filters.IsAdmin())
 async def handle_admin_message(message: Message, state: FSMContext):
     all_messages = await db_messages.get_messages_by_clients()
     await state.update_data(all_messages=all_messages)
@@ -457,53 +459,208 @@ async def handle_admin_message(message: Message, state: FSMContext):
     await state.set_state(AdminState.main_menu)
 
 
-@dp.message(IsSubscriber())
-async def handle_subscriber_message(message: Message):
-    user_id = message.from_user.id
-    user_settings = await DB.user_settings_crud.read(id_=user_id)
-    print(user_settings)
+@dp.callback_query(SubscriberState.main_menu)
+async def handle_main_menu(call: CallbackQuery, state: FSMContext):
+    if call.data == 'settings':
+        message_text = 'Choose setting to change:'
+        kb = await keyboards.get_settings_kb()
+
+        await call.message.edit_text(text=message_text,
+                                     reply_markup=kb)
+        await state.set_state(SubscriberState.settings)
+
+    else:
+        pass
 
 
-@dp.message(PrivateChat())
-async def handle_private_chat(message: Message):
-    kb = await keyboards.get_subscriber_button()
-    await message.answer(text=texts.not_subscribed_user,
-                         reply_markup=kb)
+@dp.callback_query(SubscriberState.settings)
+async def handle_setting_choice(call: CallbackQuery, state: FSMContext):
+    if call.data == 'back':
+        user_id = call.from_user.id
+        user_settings = await DB.user_settings_crud.read(id_=user_id)
+        message_text = texts.user_settings.format(user_settings.market_cap_max,
+                                                  user_settings.market_cap_min,
+                                                  user_settings.volume_5_minute_min,
+                                                  user_settings.volume_1_hour_min,
+                                                  user_settings.liquidity_min,
+                                                  user_settings.liquidity_max,
+                                                  user_settings.price_change_5_minute_min,
+                                                  user_settings.price_change_1_hour_min,
+                                                  user_settings.transaction_count_5_minute_min,
+                                                  user_settings.transaction_count_1_hour_min,
+                                                  user_settings.holders_min,
+                                                  user_settings.renounced)
+
+        kb = await keyboards.get_subscriber_menu()
+        await state.set_state(SubscriberState.main_menu)
+        await call.message.edit_text(text=message_text,
+                                     reply_markup=kb)
+
+    else:
+        settings_mapper = {'market_cap': 'Market cap',
+                           'volume': 'Volume',
+                           'liquidity': 'Liquidity',
+                           'price_change': 'Price change',
+                           'transaction_count': 'Transaction count',
+                           'holders': 'Holders',
+                           'renounced': 'Renounced'}
+
+        back_kb = await keyboards.get_back_button()
+
+        setting = settings_mapper.get(call.data)
+        await state.update_data(update_setting=setting)
+        if setting == 'Holders':
+            text = texts.holders_text.format(setting)
+            await state.set_state(SubscriberState.holders)
+            await call.message.edit_text(text=text,
+                                         reply_markup=back_kb)
+
+        elif setting == 'Renounced':
+            text = texts.renounced_text.format(setting)
+            kb = await keyboards.get_renounced_kb(user_id=call.from_user.id)
+            await state.set_state(SubscriberState.renounced)
+            await call.message.edit_text(text=text,
+                                         reply_markup=kb)
+
+        else:
+            text = texts.basic_text.format(setting)
+            await state.set_state(SubscriberState.basic_settings)
+            await call.message.edit_text(text=text,
+                                         reply_markup=back_kb)
 
 
-@dp.callback_query(SubscribeCallback())
-async def choose_plan_handler(call: CallbackQuery, state: FSMContext):
-    kb = await keyboards.get_subscriber_plans_kb()
-    await call.message.edit_text(text=texts.subscribe_plans,
+@dp.callback_query(filters.BackToSettingsChoice())
+async def handle_back_to_settings(call: CallbackQuery, state: FSMContext):
+    message_text = 'Choose setting to change:'
+    kb = await keyboards.get_settings_kb()
+
+    await call.message.edit_text(text=message_text,
                                  reply_markup=kb)
+    await state.set_state(SubscriberState.settings)
 
-    await state.set_state(PotentialSubscriber.choosing_sub_plan)
+
+@dp.message(SubscriberState.basic_settings)
+async def handle_settings_update(message: Message, state: FSMContext):
+    state_data = await state.get_data()
+    user_id = message.from_user.id
+    chosen_setting = state_data['update_setting']
+    settings_mapper = {'Market cap': ['market_cap_min', 'market_cap_max'],
+                       'Volume': ['volume_5_minute_min', 'volume_1_hour_min'],
+                       'Liquidity': ['liquidity_min', 'liquidity_max'],
+                       'Price change': ['price_change_5_minute_min', 'price_change_1_hour_min'],
+                       'Transaction count': ['transaction_count_5_minute_min', 'transaction_count_1_hour_min']}
+
+    setting_to_update = settings_mapper.get(chosen_setting)
+    pattern = '^\d+-\d+$'
+    updated_value = message.text.replace(' ', '')
+    if re.match(pattern=pattern, string=updated_value):
+        values = updated_value.split('-')
+        min_value = values[0]
+        max_value = values[1]
+        update_data = {setting_to_update[0]: min_value,
+                       setting_to_update[1]: max_value}
+
+        await DB.user_settings_crud.update(id_=user_id,
+                                           **update_data)
+
+        user_settings = await DB.user_settings_crud.read(id_=user_id)
+        message_text = (texts.settings_updated.format(chosen_setting, f'{min_value} - {max_value}') +
+                        '\n\n' +
+                        texts.user_settings.format(user_settings.market_cap_max,
+                                                   user_settings.market_cap_min,
+                                                   user_settings.volume_5_minute_min,
+                                                   user_settings.volume_1_hour_min,
+                                                   user_settings.liquidity_min,
+                                                   user_settings.liquidity_max,
+                                                   user_settings.price_change_5_minute_min,
+                                                   user_settings.price_change_1_hour_min,
+                                                   user_settings.transaction_count_5_minute_min,
+                                                   user_settings.transaction_count_1_hour_min,
+                                                   user_settings.holders_min,
+                                                   user_settings.renounced))
+        kb = await keyboards.get_subscriber_menu()
+        await state.set_state(SubscriberState.main_menu)
+        await message.answer(text=message_text,
+                             reply_markup=kb)
+
+    else:
+        kb = await keyboards.get_back_button()
+        text = texts.incorrect_settings_input.format(chosen_setting, 'digits - digits (example 123 - 123)')
+        await message.answer(text=text, reply_markup=kb)
 
 
-@dp.callback_query(PotentialSubscriber.choosing_sub_plan)
-async def register_user(call: CallbackQuery):
-    chosen_plan = call.data
-    months_mapper = {'1': 2592000,
-                     '3': 7776000,
-                     '6': 15552000}
+@dp.callback_query(SubscriberState.renounced)
+async def handle_renounced_choice(call: CallbackQuery, state: FSMContext):
+    user_id = call.from_user.id
+    true_false_mapper = {'true': True,
+                         'false': False}
 
-    months = months_mapper.get(chosen_plan)
+    settings = {'renounced': true_false_mapper.get(call.data)}
+    await DB.user_settings_crud.update(id_=user_id,
+                                       **settings)
 
     user_id = call.from_user.id
-    username = call.from_user.username
-    today = int(time.time())
-    exp_date = today + months
-    user_data = {'id': user_id,
-                 'username': username,
-                 'payed': '+',
-                 'sub_expire_time': exp_date}
-
-    await DB.user_crud.create(**user_data)
-    settings_data = {'id': user_id}
-    await DB.user_settings_crud.create(**settings_data)
-
     user_settings = await DB.user_settings_crud.read(id_=user_id)
-    print(user_settings.as_dict())
+    message_text = (texts.renounced_updated.format(true_false_mapper.get(call.data)) +
+                    '\n\n' +
+                    texts.user_settings.format(user_settings.market_cap_max,
+                                               user_settings.market_cap_min,
+                                               user_settings.volume_5_minute_min,
+                                               user_settings.volume_1_hour_min,
+                                               user_settings.liquidity_min,
+                                               user_settings.liquidity_max,
+                                               user_settings.price_change_5_minute_min,
+                                               user_settings.price_change_1_hour_min,
+                                               user_settings.transaction_count_5_minute_min,
+                                               user_settings.transaction_count_1_hour_min,
+                                               user_settings.holders_min,
+                                               user_settings.renounced))
+    kb = await keyboards.get_subscriber_menu()
+    await state.set_state(SubscriberState.main_menu)
+    await call.message.edit_text(text=message_text,
+                                 reply_markup=kb)
+
+
+@dp.message(SubscriberState.holders)
+async def handle_holders_settings(message: Message, state: FSMContext):
+    new_settings = message.text
+    user_id = message.from_user.id
+    if new_settings.isdigit():
+        settings = {'holders_min': new_settings}
+        await DB.user_settings_crud.update(id_=user_id,
+                                           **settings)
+
+        user_settings = await DB.user_settings_crud.read(id_=user_id)
+        message_text = (texts.settings_updated.format('Holders', new_settings) +
+                        '\n\n' +
+                        texts.user_settings.format(user_settings.market_cap_max,
+                                                   user_settings.market_cap_min,
+                                                   user_settings.volume_5_minute_min,
+                                                   user_settings.volume_1_hour_min,
+                                                   user_settings.liquidity_min,
+                                                   user_settings.liquidity_max,
+                                                   user_settings.price_change_5_minute_min,
+                                                   user_settings.price_change_1_hour_min,
+                                                   user_settings.transaction_count_5_minute_min,
+                                                   user_settings.transaction_count_1_hour_min,
+                                                   user_settings.holders_min,
+                                                   user_settings.renounced))
+        kb = await keyboards.get_subscriber_menu()
+        await state.set_state(SubscriberState.main_menu)
+        await message.answer(text=message_text,
+                             reply_markup=kb)
+
+    else:
+        kb = await keyboards.get_back_button()
+        text = texts.incorrect_settings_input.format('Holders', 'digits only (example - 1234)')
+        await message.answer(text=text,
+                             reply_markup=kb)
+
+
+@dp.message(filters.IsSubscriber())
+async def handle_subscriber_message(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    user_settings = await DB.user_settings_crud.read(id_=user_id)
     message_text = texts.user_settings.format(user_settings.market_cap_max,
                                               user_settings.market_cap_min,
                                               user_settings.volume_5_minute_min,
@@ -518,8 +675,80 @@ async def register_user(call: CallbackQuery):
                                               user_settings.renounced)
 
     kb = await keyboards.get_subscriber_menu()
-    await call.message.edit_text(text=message_text,
+    await message.answer(text=message_text,
+                         reply_markup=kb)
+    await state.set_state(SubscriberState.main_menu)
+
+
+@dp.message(filters.PrivateChat())
+async def handle_private_chat(message: Message):
+    kb = await keyboards.get_subscriber_button()
+    await message.answer(text=texts.not_subscribed_user,
+                         reply_markup=kb)
+
+
+@dp.callback_query(filters.SubscribeCallback())
+async def choose_plan_handler(call: CallbackQuery, state: FSMContext):
+    kb = await keyboards.get_subscriber_plans_kb()
+    await call.message.edit_text(text=texts.subscribe_plans,
                                  reply_markup=kb)
+
+    await state.set_state(PotentialSubscriber.choosing_sub_plan)
+
+
+# @dp.callback_query(PotentialSubscriber.choosing_sub_plan)
+# async def register_user(call: CallbackQuery):
+#     chosen_plan = call.data
+#     months_mapper = {'1': 2592000,
+#                      '3': 7776000,
+#                      '6': 15552000}
+#
+#     months = months_mapper.get(chosen_plan)
+#
+#     user_id = call.from_user.id
+#     username = call.from_user.username
+#     today = int(time.time())
+#     exp_date = today + months
+#     user_data = {'id': user_id,
+#                  'username': username,
+#                  'payed': '+',
+#                  'sub_expire_time': exp_date}
+#
+#     await DB.user_crud.create(**user_data)
+#     settings_data = {'id': user_id}
+#     await DB.user_settings_crud.create(**settings_data)
+#
+#     user_settings = await DB.user_settings_crud.read(id_=user_id)
+#     message_text = texts.user_settings.format(user_settings.market_cap_max,
+#                                               user_settings.market_cap_min,
+#                                               user_settings.volume_5_minute_min,
+#                                               user_settings.volume_1_hour_min,
+#                                               user_settings.liquidity_min,
+#                                               user_settings.liquidity_max,
+#                                               user_settings.price_change_5_minute_min,
+#                                               user_settings.price_change_1_hour_min,
+#                                               user_settings.transaction_count_5_minute_min,
+#                                               user_settings.transaction_count_1_hour_min,
+#                                               user_settings.holders_min,
+#                                               user_settings.renounced)
+#
+#     kb = await keyboards.get_subscriber_menu()
+#     await call.message.edit_text(text=message_text,
+#                                  reply_markup=kb)
+
+
+@dp.message(filters.UserAddedFilter())
+async def handle_new_member(message: Message):
+    new_user = message.new_chat_member
+    user_id = new_user['id']
+    user_username = new_user['username']
+
+    user_data = {'id': user_id,
+                 'username': f'@{user_username}'}
+
+    await DB.user_crud.create(**user_data)
+    settings_data = {'id': user_id}
+    await DB.user_settings_crud.create(**settings_data)
 
 
 async def exe_bot():

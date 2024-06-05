@@ -1,6 +1,7 @@
 from aiogram.utils.keyboard import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from datetime import datetime
 import calendar
+from db.facade import DB
 
 
 async def get_main_menu_kb(all_messages: dict):
@@ -128,8 +129,9 @@ async def get_cancel_button():
 
 
 async def get_subscriber_button():
+    url = 'https://telegram.me/collablandbot?start=VFBDI1RFTCNDT01NIy0xMDAyMTY4NzM2MjA2'
     url_button = [[InlineKeyboardButton(text='Subscribe!',
-                                        callback_data='subscribe')]]
+                                        url=url)]]
 
     kb = InlineKeyboardMarkup(inline_keyboard=url_button)
 
@@ -138,9 +140,7 @@ async def get_subscriber_button():
 
 async def get_subscriber_menu():
     buttons = [[InlineKeyboardButton(text='Settings',
-                                     callback_data='settings'),
-                InlineKeyboardButton(text='Payments',
-                                     callback_data='payments')]]
+                                     callback_data='settings')]]
 
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -155,6 +155,64 @@ async def get_subscriber_plans_kb():
                 InlineKeyboardButton(text='6 months',
                                      callback_data='6')
                 ]]
+
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    return kb
+
+
+async def get_settings_kb():
+    # -Market cap(minimum - max)
+    # -Volume 5m, 1hr(min)
+    # -Liquidity(minimum - max)
+    # -Price change 5 m, 1 hr(min)
+    # -Transaction count 5 m, 1 hr(min)
+    # -Holders(min)
+    # -Renounced? (Not all projects are renounced)
+
+    buttons = [[InlineKeyboardButton(text='Market cap',
+                                     callback_data='market_cap')],
+                [InlineKeyboardButton(text='Volume',
+                                      callback_data='volume')],
+                [InlineKeyboardButton(text='Liquidity',
+                                      callback_data='liquidity')],
+                [InlineKeyboardButton(text='Price change',
+                                      callback_data='price_change')],
+                [InlineKeyboardButton(text='Transaction count',
+                                      callback_data='transaction_count')],
+                [InlineKeyboardButton(text='Holders',
+                                      callback_data='holders')],
+                [InlineKeyboardButton(text='Renounced',
+                                      callback_data='renounced')],
+                [InlineKeyboardButton(text='Back',
+                                      callback_data='back')]
+               ]
+
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    return kb
+
+
+async def get_renounced_kb(user_id: int):
+    user_settings = await DB.user_settings_crud.read(id_=user_id)
+    renounce = user_settings.renounced
+    check_mark = "\u2714"
+    if renounce:
+        buttons = [[InlineKeyboardButton(text=f'True {check_mark}',
+                                         callback_data='true'),
+                   InlineKeyboardButton(text='False',
+                                        callback_data='false')]]
+
+    else:
+        buttons = [[InlineKeyboardButton(text='True',
+                                         callback_data='true'),
+                   InlineKeyboardButton(text=f'False {check_mark}',
+                                        callback_data='false')]]
+
+    back_button = [InlineKeyboardButton(text='Back',
+                                         callback_data='back')]
+
+    buttons.append(back_button)
 
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 

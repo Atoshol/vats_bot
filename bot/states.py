@@ -19,7 +19,12 @@ class UserState(StatesGroup):
 
 
 class SubscriberState(StatesGroup):
-    pass
+    main_menu = State()
+    settings = State()
+    holders = State()
+    renounced = State()
+    basic_settings = State()
+
 
 
 class PotentialSubscriber(StatesGroup):

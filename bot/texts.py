@@ -51,3 +51,21 @@ user_settings = ('Here is you current settings:\n\n'
                  '- holders min: {}\n'
                  '- renounced: {}\n\n'
                  'To change settings press button below.')
+
+holders_text = ('Please update your {} settings\n\n'
+                '(must be digits):')
+
+renounced_text = ('Please update your {} settings\n\n'
+                  '(choose True or False)')
+
+basic_text = ('Please update your {} settings\n\n'
+              '(must be in this format: min(digit) - max(digit)):')
+
+renounced_updated = 'Renounce updated to {}!'
+
+
+settings_updated = 'Your {} updated to {}!'
+
+incorrect_settings_input = ('Incorrect value for {}!\n\n'
+                            'Must be {}!\n\n'
+                            'Please try again.')

@@ -6,6 +6,8 @@ from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
 from bot.main import bot
 from db.facade import DB
+from aiogram.types import ChatMemberUpdated
+
 
 
 class IsAdmin(Filter):
@@ -54,3 +56,21 @@ class SubscribeCallback(Filter):
         if call.data == 'subscribe':
             return True
         return False
+
+
+class BackToSettingsChoice(Filter):
+    async def __call__(self, call: CallbackQuery, state: FSMContext):
+        needed_states = ['SubscriberState:basic_settings', 'SubscriberState:renounced', 'SubscriberState:holders']
+        user_state = await state.get_state()
+        if call.data == 'back' and user_state in needed_states:
+            return True
+        return False
+
+
+class UserAddedFilter(Filter):
+    async def __call__(self, message: Message):
+        return bool(message.new_chat_members)
+
+# class NewChatMembersFilter(Filter):
+#     async def __call__(self, message: Message) -> bool:
+#         return bool(message.new_chat_members)
