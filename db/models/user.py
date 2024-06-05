@@ -9,8 +9,6 @@ class User(Base):
 
     id = Column(BigInteger, primary_key=True, index=True)
     username = Column(String, nullable=True)
-    payed = Column(String, nullable=True)
-    sub_expire_time = Column(BigInteger)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
