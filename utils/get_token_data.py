@@ -16,10 +16,9 @@ async def get_token_data_by_address(chain, address):
     conn.request("GET", f"/dex/pair-details/v3/{chain}/{address}", payload, headers)
 
     res = conn.getresponse()
-    data = res.read()
-
+    data = res.read().decode('utf-8')
     return data
 
 if __name__ == '__main__':
-    data = asyncio.run(get_token_data_by_address('base', '0x772aa2e596f739ed7292fc990196416e84db3c81'))
+    data = asyncio.run(get_token_data_by_address('solana', '3C5GmLf5ywEYPATptqgHavbvxqFp5v3DcdP3hukWUvpY'))
     pprint(data)

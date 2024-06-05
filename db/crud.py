@@ -1,5 +1,5 @@
 from sqlalchemy.future import select
-from sqlalchemy.exc import NoResultFound
+from sqlalchemy.exc import NoResultFound, IntegrityError
 from decorators.db_session import db_session
 
 
@@ -10,9 +10,13 @@ class AsyncCRUD:
     @db_session
     async def create(self, session, **kwargs):
         instance = self.model(**kwargs)
-        session.add(instance)
-        await session.commit()
-        return instance
+        try:
+            session.add(instance)
+            await session.commit()
+            return instance
+        except IntegrityError:
+            await session.rollback()
+            return None
 
     @db_session
     async def read(self, session, id_):
