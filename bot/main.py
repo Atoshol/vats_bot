@@ -1,6 +1,6 @@
 from bot.settings import TOKEN
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram import Bot, Dispatcher, F
+from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from db.models.message import MessageCRUD, MessageLastIndexCRUD

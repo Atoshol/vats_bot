@@ -1,38 +1,68 @@
 import asyncio
 from datetime import datetime
 import json
-import csv
-import os
 import ssl
 from pprint import pprint
 import websockets
+from aiogram.types import FSInputFile
+
+from bot import keyboards
 from db.facade import DB
+from utils.functions import get_display_message, format_percentage_change, format_value, scan_links
+from utils.get_data_cg import get_cg
 from utils.get_data_go_plus import get_data_go_plus_by_address
+from utils.get_data_honeypot import get_data_honeypot_is
 from utils.get_token_data import get_token_data_by_address
 from bot.main import bot
 
-
 db = DB()
+main_chat_id = -1002187981684
+
+
+def unique_dicts(dicts_list):
+    unique_set = set()
+    unique_list = []
+
+    for d in dicts_list:
+        # Convert dictionary to a sorted tuple of items
+        dict_tuple = tuple(sorted(d.items()))
+        if dict_tuple not in unique_set:
+            unique_set.add(dict_tuple)
+            unique_list.append(d)
+
+    return unique_list
+
+
+def format_large_number(number):
+    if number >= 1_000_000:
+        return f"{number / 1_000_000:.1f}m"
+    elif number >= 1_000:
+        return f"{number / 1_000:.0f}k"
+    else:
+        return str(number)
 
 
 async def send_message_to_user(user_id, msg):
-    await bot.send_message(chat_id=user_id, text=msg)
+    await bot.send_message(chat_id=user_id, text=msg, disable_web_page_preview=True)
 
 
 async def send_message_to_group(msg):
-    pass
+    try:
+        await bot.send_message(chat_id=main_chat_id, text=msg, disable_web_page_preview=True)
+    except Exception as e:
+        print(f'{e}')
 
 
 def token_matches_default_settings(token_data):
     default_settings = {
-        "market_cap_min": 50000,
-        "market_cap_max": 500000,
-        "volume_5_minute_min": 15000,
-        "volume_1_hour_min": 15000,
-        "liquidity_min": 20000,
-        "liquidity_max": 200000,
-        "price_change_5_minute_min": 100,
-        "price_change_1_hour_min": 100,
+        "market_cap_min": 10000,
+        "market_cap_max": 4000000,
+        "volume_5_minute_min": 10,
+        "volume_1_hour_min": 10,
+        "liquidity_min": 15000,
+        "liquidity_max": 400000,
+        "price_change_5_minute_min": 10,
+        "price_change_1_hour_min": 10,
         "transaction_count_5_minute_min": 10,
         "transaction_count_1_hour_min": 10,
         "holders_min": 25,
@@ -41,55 +71,71 @@ def token_matches_default_settings(token_data):
     }
 
     checks = {
-        "market_cap": (default_settings["market_cap_min"] <= token_data.get("market_cap", 0) <= default_settings["market_cap_max"]),
+        "market_cap": (default_settings["market_cap_min"] <= token_data.get("market_cap", 0) <= default_settings[
+            "market_cap_max"]),
         "volume_5m": (default_settings["volume_5_minute_min"] <= token_data.get("volume_5m", 0)),
         "volume_1h": (default_settings["volume_1_hour_min"] <= token_data.get("volume_1h", 0)),
-        "liquidity": (default_settings["liquidity_min"] <= token_data.get("liquidity_usd", 0) <= default_settings["liquidity_max"]),
+        "liquidity": (default_settings["liquidity_min"] <= token_data.get("liquidity_usd", 0) <= default_settings[
+            "liquidity_max"]),
         "price_change_5m": (default_settings["price_change_5_minute_min"] <= token_data.get("price_change_5m", 0)),
         "price_change_1h": (default_settings["price_change_1_hour_min"] <= token_data.get("price_change_1h", 0)),
-        "transaction_count_5m": (default_settings["transaction_count_5_minute_min"] <= token_data.get("transaction_count_5_minute_min", 0)),
-        "transaction_count_1h": (default_settings["transaction_count_1_hour_min"] <= token_data.get("transaction_count_1_hour_min", 0)),
+        "transaction_count_5m": (default_settings["transaction_count_5_minute_min"] <= token_data.get(
+            "transaction_count_5_minute_min", 0)),
+        "transaction_count_1h": (
+                default_settings["transaction_count_1_hour_min"] <= token_data.get("transaction_count_1_hour_min",
+                                                                                   0)),
         "holders": (token_data.get("holders", 0) >= default_settings["holders_min"]),
         "renounced": (token_data.get("renounced") == default_settings["renounced"]),
-        "pair_age": ((datetime.now().timestamp() - token_data.get("pair_created_at", 0)) <= default_settings["pair_age_max"])
+        "pair_age": ((datetime.now().timestamp() - token_data.get("pair_created_at", 0)) <= default_settings[
+            "pair_age_max"])
     }
-    pprint(token_data)
     # Print all checks and their results
-    for key, value in checks.items():
-        print(key, value)
-    return all(checks.values())
+    # for key, value in checks.items():
+    #     print(key, value)
+    # return all(checks.values())
+    return True
 
 
 async def form_message(new_data, links):
     risk_level_link = "https://example.com/risk-level"  # Replace with actual link
 
     link_str = " | ".join([f'<a href="{link.get("url")}">{link.get("type").capitalize()}</a>' for link in links])
-
+    address = new_data.get('contract_address')
+    owner_address = new_data.get('contract_address')
+    try:
+        owner_link = scan_links[f"{new_data.get('chain_name')}"].format(address)
+    except KeyError:
+        owner_link = scan_links['ethereum'].format(address)
     message = f"""
-    <b>Vats Bot</b><br>
-    <br>
-    - <b>{new_data.get('name')} - ({new_data.get('symbol')})</b><br>
-    - Network: {new_data.get('chain_name')}<br>
-    - Price: ${new_data.get('price')}<br>
-    - 5M Change %: {new_data.get('price_change_5m')}%<br>
-    - 1H Change %: {new_data.get('price_change_1h')}%<br>
-    - 24Hr Volume: ${new_data.get('volume_24h')}<br>
-    - Liquidity: ${new_data.get('liquidity_usd')}<br>
-    - Market Cap: ${new_data.get('market_cap')}<br>
-    - Risk level: <a href='{risk_level_link}'>Click here</a><br>
-    - Tax (S/B): {new_data.get('tax_sell', 'N/A')}/{new_data.get('tax_buy', 'N/A')}<br>
-    - Liquidity Lock/Burn: N/A<br>
-    - Holders: {new_data.get('holders')}<br>
-    - Clog: N/A<br>
-    - Owner Supply: N/A<br>
-    - Pair Age: {int((datetime.now().timestamp() - new_data.get('pair_created_at')) / 3600)} hours<br>
-    - Renounced: {'Yes' if new_data.get('renounced', False) else 'No'}<br><br>
-    <b>Maestro buy link</b><br>
-    <b>Banana bot buy link</b><br><br>
-    <code>{new_data.get('contract_address')}</code><br><br>
-    {link_str}<br><br>
-    <i>Ad section (using same mechanism as Aladdin)</i><br>
+📌 <b>{new_data.get('name', "N/A")}</b> | <b>Risk Level:</b> {new_data.get('risk_level', "N/A")}\n\n
+
+👨‍💻 <b>Deployer: </b><a href='{owner_link}'>{owner_address[0:4]}...{owner_address[-5:-1]}</a>
+👤 <b>Owner:</b> RENOUNCED: {'Yes' if new_data.get('renounced', False) else 'No'}
+🔶 <b>Chain:</b> {new_data.get('chain_name')} | ⚖️️ Age: {int((datetime.now().timestamp() -
+                                                   new_data.get('pair_created_at')) / 3600)} hours
+
+💰 <b>MC:</b> ${format_large_number(new_data.get('market_cap'))} | <b>Liq:</b> ${format_large_number(new_data.get('liquidity_usd'))}
+🔒 <b>LP Lock: </b> N/A <b>Burned:</b> {new_data.get('percentage', "N/A")}%
+💳 <b>Tax:</b> B: {format_percentage_change(new_data.get('tax_buy', 'N/A'))}% | S: {format_percentage_change(new_data.get(
+        'tax_sell', 'N/A'))}% | T: {format_percentage_change(new_data.get('tax_transfer', 'N/A'))}%
+📈 <b>24h:</b> {format_percentage_change(new_data.get('price_change_24h'))}% | V:  {format_large_number(
+        new_data.get('volume_24h'))} | B: {format_large_number(new_data.get('transaction_count_24_hour_min_buys', 'N/A'))} S: {
+    format_large_number(new_data.get('transaction_count_24_hour_min_sells', 'N/A'))}
+
+💲 <b>Price:</b> ${format_value(new_data.get('price'))}
+💵 <b>Launch MC:</b> N/A
+👆 <b>ATH:</b> $7.58M (1552x)
+🔗 {link_str}
+
+📊 <b>TS:</b> {format_large_number(new_data.get('transaction_count_24_hour_min_buys', 0) +
+                                  new_data.get('transaction_count_24_hour_min_sells', 0))}
+👩‍👧‍👦 <b>Holders:</b> {format_large_number(new_data.get('holders', 0))} | <b>Top 10:</b> {new_data.get('top10_percentage')}
+💸 <b>Airdrops:</b> CLEAN No Airdrops!
+
+<code>{new_data.get('contract_address')}</code> (click to copy)
+
     """
+
     return message
 
 
@@ -116,16 +162,16 @@ async def on_message(message):
         volume_24h = i.get('volume', {}).get('h24', 0)
         pair_created_at = i.get('pairCreatedAt', 0) / 1000
         market_cap = i.get('marketCap', 0)
-        transaction_count_5_minute_min = i.get('txns', {}).get('m5', {}).get('buys', 0) + i.get('txns', {}).get('m5',
-                                                                                                                {}).get(
-            'sells', 0)
-        transaction_count_1_hour_min = i.get('txns', {}).get('h1', {}).get('buys', 0) + i.get('txns', {}).get('h1',
-                                                                                                              {}).get(
-            'sells', 0)
-        print(address, chain_name)
+        transaction_count_5_minute_min_buys = i.get('txns', {}).get('m5', {}).get('buys', 0)
+        transaction_count_5_minute_min_sells = i.get('txns', {}).get('m5', {}).get('sells', 0)
+        transaction_count_1_hour_min_buys = i.get('txns', {}).get('h1', {}).get('buys', 0)
+        transaction_count_1_hour_min_sells = i.get('txns', {}).get('h1', {}).get('sells', 0)
+        transaction_count_24_hour_min_buys = i.get('txns', {}).get('h24', {}).get('buys', 0)
+        transaction_count_24_hour_min_sells = i.get('txns', {}).get('h24', {}).get('sells', 0)
+
         current_time = datetime.now().timestamp()
         # current_time - pair_created_at > 86400 or
-        if (current_time - pair_created_at > 86400 or
+        if (current_time - pair_created_at > 34486400 or
                 await db.tokenPair_crud.check_contract(contract_address=address)):
             print('SKIPPED ___________________________________')
             continue
@@ -136,10 +182,26 @@ async def on_message(message):
             except json.JSONDecodeError:
                 token_data = {"error": "Failed to decode token data"}
 
-        risk_level_data = await get_data_go_plus_by_address(chain=chain_name, address=address)
-
+        risk_level_data = await get_data_honeypot_is(address=address)
+        go_plus = await get_data_go_plus_by_address(chain=chain_name, address=address)
         extracted_data = {}
         links = []
+        if token_data.get('cg') is not None:
+            cg_id = token_data['cg']['id']
+            cg_data = get_cg(cg_id)
+            ath_usd = cg_data['market_data']['ath']['usd']
+        else:
+            ath_usd = 0
+
+        if token_data.get('ll') is not None:
+            tag = token_data['ll']['locks'][0]['tag']
+            if tag == 'Burned':
+                percentage = sum([i['percentage'] for i in token_data['ll']['locks']])
+            else:
+                percentage = 0
+        else:
+            percentage = 0
+
         for k, v in token_data.items():
             if isinstance(v, dict):
                 if 'socials' in v and v['socials'] != []:
@@ -149,7 +211,7 @@ async def on_message(message):
                     extracted_data['renounced'] = v['contractRenounced']
                 if 'holders' == k and v['count'] != 0:
                     extracted_data['holders'] = v['count']
-
+        links = unique_dicts(links)
         new_data = {
             "contract_address": address,
             "name": name,
@@ -166,12 +228,20 @@ async def on_message(message):
             "volume_24h": volume_24h,
             "pair_created_at": pair_created_at,
             "market_cap": market_cap,
-            "transaction_count_5_minute_min": transaction_count_5_minute_min,
-            "transaction_count_1_hour_min": transaction_count_1_hour_min,
+            "transaction_count_5_minute_min": transaction_count_5_minute_min_buys + transaction_count_5_minute_min_sells,
+            "transaction_count_1_hour_min": transaction_count_1_hour_min_sells + transaction_count_1_hour_min_buys,
             "tax_buy": risk_level_data.get('buy_tax', 0),
             "tax_sell": risk_level_data.get('sell_tax', 0),
-            'owner_supply': risk_level_data.get('owner_balance', 0),
-            # 'risk_level_data': risk_level_data
+            "tax_transfer": risk_level_data.get('transfer_tax', 0),
+            'owner_supply': go_plus.get('owner_balance', 0),
+            'owner_address': go_plus.get('creator_address', 0),
+            'total_supply': go_plus.get('total_supply', 0),
+            'top10_percentage': round(sum([float(i['percent']) for i in go_plus.get('holders', [{'percent': 0}])]), 2),
+            'risk_level': risk_level_data.get('risk', "N/A"),
+            'transaction_count_24_hour_min_buys': transaction_count_24_hour_min_buys,
+            'transaction_count_24_hour_min_sells': transaction_count_24_hour_min_sells,
+            'ath_usd': ath_usd,
+            'liquidity_burned': percentage,
             **extracted_data
         }
 

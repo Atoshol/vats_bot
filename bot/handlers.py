@@ -1,27 +1,17 @@
-"""This module contains all bot handlers"""
-import random
+
 import re
 import time
-
-from aiogram import F
-from aiogram.enums import ParseMode
-from aiogram.filters import CommandStart
-
 import bot.texts as texts
 import logging
 import bot.keyboards as keyboards
-
-from datetime import datetime, timedelta
-from aiogram.types import Message, CallbackQuery, BufferedInputFile
+from datetime import timedelta
+from aiogram.types import Message, CallbackQuery
 from bot.main import dp, bot, db_clients, db_messages
 from aiogram.fsm.context import FSMContext
 from bot.states import AdminState, PotentialSubscriber, SubscriberState
-from bot.keyboards import get_clients_kb
-from utils.functions import find_closest_time_frame, get_data, get_history, escape_markdown_v2, \
-    get_display_message
+from utils.functions import escape_markdown_v2
 from db.facade import DB
 import bot.filters as filters
-from aiogram.types import ChatMemberUpdated
 
 
 # logging.basicConfig(filename='logs.log', level=logging.INFO,

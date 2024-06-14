@@ -26,6 +26,5 @@ class SubscriberState(StatesGroup):
     basic_settings = State()
 
 
-
 class PotentialSubscriber(StatesGroup):
     choosing_sub_plan = State()

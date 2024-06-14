@@ -7,6 +7,26 @@ import requests
 from bot.main import db_last_message, db_messages
 
 
+scan_links = {
+    "ethereum": "https://etherscan.io/address/{}",
+    "base": "https://basescan.org/address/{}",
+    "bsc": "https://bscscan.com/address/{}",
+    "polygon": "https://polygonscan.com/address/{}",
+    "avalanche": "https://snowtrace.io/address/{}",
+    "fantom": "https://ftmscan.com/address/{}",
+    "arbitrum": "https://arbiscan.io/address/{}",
+    "optimism": "https://optimistic.etherscan.io/address/{}",
+    "solana": "https://explorer.solana.com/address/{}",
+    "cardano": "https://explorer.cardano.org/en/address/{}",
+    "tezos": "https://tzkt.io/{}",
+    "cosmos": "https://www.mintscan.io/cosmos/account/{}",
+    "polkadot": "https://polkadot.subscan.io/account/{}",
+    "near": "https://explorer.near.org/accounts/{}",
+    "harmony": "https://explorer.harmony.one/address/{}",
+    "terra": "https://finder.terra.money/mainnet/address/{}"
+}
+
+
 def get_price(symbol, period):
     key = f"price_change_{period}_percent"
     response = requests.get(f'https://coincodex.com/api/coincodex/get_coin/{symbol}')
@@ -204,3 +224,51 @@ async def get_display_message():
     message_to_show = next(filter(lambda message: message['id'] == message_to_display_id, all_messages), None)
 
     return message_to_show
+
+
+def format_value(value):
+    if value == 0:
+        return "0.00"
+    value = float(value)
+    abs_value_str = f"{abs(value):.10f}".rstrip('0')
+    integer_part, decimal_part = abs_value_str.split('.')
+
+    # Find the first non-zero digit in the decimal part and add three digits after it
+    significant_digits = ''
+    count = 0
+    started = False
+    for digit in decimal_part:
+        significant_digits += digit
+        if digit != '0':
+            started = True
+        if started:
+            count += 1
+        if count == 4:
+            break
+
+    formatted_value = f"{integer_part}.{significant_digits}"
+    return formatted_value.rstrip('.')
+
+
+def format_percentage_change(value):
+    if value == 0:
+        return "0.00"
+    value = float(value)
+    abs_value_str = f"{abs(value):.10f}".rstrip('0')
+    integer_part, decimal_part = abs_value_str.split('.')
+
+    # Find the first non-zero digit in the decimal part and add three digits after it
+    significant_digits = ''
+    count = 0
+    started = False
+    for digit in decimal_part:
+        significant_digits += digit
+        if digit != '0':
+            started = True
+        if started:
+            count += 1
+        if count == 4:
+            break
+
+    formatted_value = f"{integer_part}.{significant_digits}"
+    return f"+{formatted_value}" if value > 0 else f"-{formatted_value}"
