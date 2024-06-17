@@ -47,8 +47,7 @@ class UserSettingsCRUD(AsyncCRUD):
         result = await session.execute(select(UserSettings))
         return result.scalars().all()
 
-    @db_session
-    async def get_matching_users(self, session, token_data: Dict) -> List[int]:
+    async def get_matching_users(self, token_data: Dict) -> List[int]:
         user_settings = await self.get_all()
         matching_users = []
         for settings in user_settings:

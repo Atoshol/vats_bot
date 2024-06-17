@@ -2,13 +2,9 @@ import asyncio
 from datetime import datetime
 import json
 import ssl
-from pprint import pprint
 import websockets
-from aiogram.types import FSInputFile
-
-from bot import keyboards
 from db.facade import DB
-from utils.functions import get_display_message, format_percentage_change, format_value, scan_links
+from utils.functions import format_percentage_change, format_value, scan_links
 from utils.get_data_cg import get_cg
 from utils.get_data_go_plus import get_data_go_plus_by_address
 from utils.get_data_honeypot import get_data_honeypot_is
@@ -53,22 +49,9 @@ async def send_message_to_group(msg):
         print(f'{e}')
 
 
-def token_matches_default_settings(token_data):
-    default_settings = {
-        "market_cap_min": 10000,
-        "market_cap_max": 4000000,
-        "volume_5_minute_min": 10,
-        "volume_1_hour_min": 10,
-        "liquidity_min": 15000,
-        "liquidity_max": 400000,
-        "price_change_5_minute_min": 10,
-        "price_change_1_hour_min": 10,
-        "transaction_count_5_minute_min": 10,
-        "transaction_count_1_hour_min": 10,
-        "holders_min": 25,
-        "renounced": False,
-        "pair_age_max": 86400
-    }
+async def token_matches_default_settings(token_data):
+    default_settings = await db.default_settings_crud.read(1)
+    default_settings = default_settings.as_dict()
 
     checks = {
         "market_cap": (default_settings["market_cap_min"] <= token_data.get("market_cap", 0) <= default_settings[
@@ -90,10 +73,9 @@ def token_matches_default_settings(token_data):
             "pair_age_max"])
     }
     # Print all checks and their results
-    # for key, value in checks.items():
-    #     print(key, value)
-    # return all(checks.values())
-    return True
+    for key, value in checks.items():
+        print(key, value)
+    return all(checks.values())
 
 
 async def form_message(new_data, links):
@@ -101,15 +83,19 @@ async def form_message(new_data, links):
 
     link_str = " | ".join([f'<a href="{link.get("url")}">{link.get("type").capitalize()}</a>' for link in links])
     address = new_data.get('contract_address')
-    owner_address = new_data.get('contract_address')
+    owner_address = new_data.get('owner_address')
+    if owner_address != 0:
+        owner_str = f'{owner_address[0:4]}...{owner_address[-5:-1]}'
+    else:
+        owner_str = 'N/A'
     try:
-        owner_link = scan_links[f"{new_data.get('chain_name')}"].format(address)
+        owner_link = scan_links[f"{new_data.get('chain_name')}"].format(address) if owner_address != 'N/A' else 'N/A'
     except KeyError:
-        owner_link = scan_links['ethereum'].format(address)
+        owner_link = scan_links['ethereum'].format(address) if owner_address != 'N/A' else 'N/A'
     message = f"""
 📌 <b>{new_data.get('name', "N/A")}</b> | <b>Risk Level:</b> {new_data.get('risk_level', "N/A")}\n\n
 
-👨‍💻 <b>Deployer: </b><a href='{owner_link}'>{owner_address[0:4]}...{owner_address[-5:-1]}</a>
+👨‍💻 <b>Deployer: </b><a href='{owner_link}'>{owner_str}</a>
 👤 <b>Owner:</b> RENOUNCED: {'Yes' if new_data.get('renounced', False) else 'No'}
 🔶 <b>Chain:</b> {new_data.get('chain_name')} | ⚖️️ Age: {int((datetime.now().timestamp() -
                                                    new_data.get('pair_created_at')) / 3600)} hours
@@ -171,7 +157,7 @@ async def on_message(message):
 
         current_time = datetime.now().timestamp()
         # current_time - pair_created_at > 86400 or
-        if (current_time - pair_created_at > 34486400 or
+        if (current_time - pair_created_at > 86400 or
                 await db.tokenPair_crud.check_contract(contract_address=address)):
             print('SKIPPED ___________________________________')
             continue
@@ -247,7 +233,7 @@ async def on_message(message):
 
         message = await form_message(new_data, links)
 
-        if token_matches_default_settings(new_data):
+        if await token_matches_default_settings(new_data):
             await send_message_to_group(message)
             token = await db.tokenPair_crud.create(**new_data)
             if token is not None:
