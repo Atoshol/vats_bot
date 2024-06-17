@@ -887,7 +887,7 @@ async def handle_subscriber_message(message: Message, state: FSMContext):
 @dp.message(filters.PrivateChat())
 async def handle_private_chat(message: Message):
     kb = await keyboards.get_subscriber_button()
-    await message.answer(text=texts.not_subscribed_user,
+    await message.answer(text=texts.not_subscribed_user.format(message.from_user.first_name),
                          reply_markup=kb)
 
 
