@@ -12,6 +12,11 @@ class AdminState(StatesGroup):
     choosing_client = State()
     input_new_message_text = State()
     adding_new_url = State()
+    default_settings = State()
+    basic_settings = State()
+    holders = State()
+    renounced = State()
+    messages = State()
 
 
 class UserState(StatesGroup):

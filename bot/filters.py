@@ -14,7 +14,7 @@ class IsAdmin(Filter):
     async def __call__(self, message: Message):
 
         #admins = [341302373, 669944831, 282659644, 6508260399]
-        admins = []
+        admins = [669944831]
 
         if message.from_user.id in admins and message.chat.type == 'private':
             return True
@@ -61,6 +61,16 @@ class SubscribeCallback(Filter):
 class BackToSettingsChoice(Filter):
     async def __call__(self, call: CallbackQuery, state: FSMContext):
         needed_states = ['SubscriberState:basic_settings', 'SubscriberState:renounced', 'SubscriberState:holders']
+        user_state = await state.get_state()
+        if call.data == 'back' and user_state in needed_states:
+            return True
+        return False
+
+
+class BackToAdminSettingsChoice(Filter):
+    async def __call__(self, call: CallbackQuery, state: FSMContext):
+        needed_states = ['AdminState:basic_settings', 'AdminState:renounced',
+                         'AdminState:holders']
         user_state = await state.get_state()
         if call.data == 'back' and user_state in needed_states:
             return True

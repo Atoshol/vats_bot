@@ -94,9 +94,49 @@ import bot.filters as filters
 #             else:
 #                 await message.reply_photo(photo=input_file, caption=clear_text)
 
-
 @dp.callback_query(AdminState.main_menu)
-async def handle_main_menu_callback(call: CallbackQuery, state: FSMContext):
+async def handle_main_menu(call: CallbackQuery, state: FSMContext):
+    if call.data == 'messages':
+        all_messages = await db_messages.get_messages_by_clients()
+        await state.update_data(all_messages=all_messages)
+
+        if len(all_messages.keys()) >= 1:
+            text = await escape_markdown_v2(
+                text='Here is your clients messages (press button to get detailed preview):')
+
+        else:
+            text = await escape_markdown_v2(text='You have no messages. Press button below to add client or message.')
+
+        kb = await keyboards.messages_menu(all_messages=all_messages)
+
+        await call.message.edit_text(text=text, reply_markup=kb)
+        await state.set_state(AdminState.messages)
+
+    else:
+        kb = await keyboards.get_settings_kb()
+
+        await state.set_state(AdminState.default_settings)
+        default_settings = await DB.default_settings_crud.read(id_=1)
+        message_text = texts.user_settings.format(default_settings.market_cap_max,
+                                                  default_settings.market_cap_min,
+                                                  default_settings.volume_5_minute_min,
+                                                  default_settings.volume_1_hour_min,
+                                                  default_settings.liquidity_min,
+                                                  default_settings.liquidity_max,
+                                                  default_settings.price_change_5_minute_min,
+                                                  default_settings.price_change_1_hour_min,
+                                                  default_settings.transaction_count_5_minute_min,
+                                                  default_settings.transaction_count_1_hour_min,
+                                                  default_settings.holders_min,
+                                                  default_settings.renounced)
+
+        await call.message.edit_text(text=message_text,
+                                     reply_markup=kb)
+        await state.set_state(AdminState.default_settings)
+
+
+@dp.callback_query(AdminState.messages)
+async def handle_messages(call: CallbackQuery, state: FSMContext):
     if call.data == 'add_client':
         text = await escape_markdown_v2(text='Please type new client name:')
         kb = await keyboards.get_back_button()
@@ -111,7 +151,7 @@ async def handle_main_menu_callback(call: CallbackQuery, state: FSMContext):
             all_messages = await db_messages.get_messages_by_clients()
             text = 'You have no created clients.'
 
-            kb = await keyboards.get_main_menu_kb(all_messages=all_messages)
+            kb = await keyboards.messages_menu(all_messages=all_messages)
 
             await call.message.edit_text(text=text,
                                          reply_markup=kb)
@@ -173,7 +213,7 @@ async def handle_back_to_main_menu(call: CallbackQuery, state: FSMContext):
     else:
         text = await escape_markdown_v2(text='You have no messages. Press button below to add client or message.')
 
-    kb = await keyboards.get_main_menu_kb(all_messages=all_messages)
+    kb = await keyboards.messages_menu(all_messages=all_messages)
 
     await call.message.edit_text(text=text,
                                  reply_markup=kb)
@@ -208,12 +248,12 @@ async def handle_client_name(message: Message, state: FSMContext):
         text = await escape_markdown_v2(text='Client created and saved!\n\n' +
                                              'You have no messages. Press button below to add client or message.')
 
-    kb = await keyboards.get_main_menu_kb(all_messages=all_messages)
+    kb = await keyboards.messages_menu(all_messages=all_messages)
 
     await message.answer(text=text,
                          reply_markup=kb)
 
-    await state.set_state(AdminState.main_menu)
+    await state.set_state(AdminState.messages)
 
 
 @dp.message(AdminState.adding_message)
@@ -293,10 +333,10 @@ async def handle_duration(message: Message, state: FSMContext):
         text = await escape_markdown_v2(text='Message successfully created!' +
                                              'Here is your clients messages (press button to get detailed preview):')
 
-        kb = await keyboards.get_main_menu_kb(all_messages=all_messages)
+        kb = await keyboards.messages_menu(all_messages=all_messages)
 
         await message.answer(text=text, reply_markup=kb)
-        await state.set_state(AdminState.main_menu)
+        await state.set_state(AdminState.messages)
 
 
 @dp.callback_query(AdminState.setting_duration)
@@ -348,10 +388,10 @@ async def handle_callback_preview(call: CallbackQuery, state: FSMContext):
             text = await escape_markdown_v2(text='Message deleted!\n\n' +
                                                  'You have no messages. Press button below to add client or message.')
 
-        kb = await keyboards.get_main_menu_kb(all_messages=all_messages)
+        kb = await keyboards.messages_menu(all_messages=all_messages)
 
         await call.message.edit_text(text=text, reply_markup=kb)
-        await state.set_state(AdminState.main_menu)
+        await state.set_state(AdminState.messages)
 
 
 @dp.message(AdminState.input_new_message_text)
@@ -370,7 +410,7 @@ async def handle_new_ad_text(message: Message, state: FSMContext):
 @dp.message(AdminState.adding_new_url)
 async def handle_new_url(message: Message, state: FSMContext):
     url = message.text
-    pattern = r'\bhttps?://(?:www\.)?[a-zA-Z0-9-]+(?:\.[a-zA-Z]+)+(?::\d+)?(?:/[^\s]*)?'
+    pattern = r'\https?://(?:www\.)?[a-zA-Z0-9-]+(?:\.[a-zA-Z]+)+(?::\d+)?(?:/[^\s]*)?'
     if re.match(pattern=pattern, string=url):
         state_data = await state.get_data()
         new_text = state_data['new_ad_text']
@@ -381,14 +421,14 @@ async def handle_new_url(message: Message, state: FSMContext):
 
         await state.clear()
 
-        await state.set_state(AdminState.main_menu)
+        await state.set_state(AdminState.messages)
         all_messages = await db_messages.get_messages_by_clients()
         await state.update_data(all_messages=all_messages)
 
         text = await escape_markdown_v2(text='Message edited!\n\n'
                                              'Here is your clients messages (press button to get detailed preview):')
 
-        kb = await keyboards.get_main_menu_kb(all_messages=all_messages)
+        kb = await keyboards.messages_menu(all_messages=all_messages)
 
         await message.answer(text=text, reply_markup=kb)
 
@@ -412,14 +452,14 @@ async def handle_new_url_callback(call: CallbackQuery, state: FSMContext):
 
         await state.clear()
 
-        await state.set_state(AdminState.main_menu)
+        await state.set_state(AdminState.messages)
         all_messages = await db_messages.get_messages_by_clients()
         await state.update_data(all_messages=all_messages)
 
         text = await escape_markdown_v2(text='Message edited!\n\n'
                                              'Here is your clients messages (press button to get detailed preview):')
 
-        kb = await keyboards.get_main_menu_kb(all_messages=all_messages)
+        kb = await keyboards.messages_menu(all_messages=all_messages)
 
         await call.message.edit_text(text=text, reply_markup=kb)
 
@@ -432,18 +472,192 @@ async def handle_new_url_callback(call: CallbackQuery, state: FSMContext):
         await state.set_state(AdminState.adding_message)
 
 
-@dp.message(filters.IsAdmin())
-async def handle_admin_message(message: Message, state: FSMContext):
-    all_messages = await db_messages.get_messages_by_clients()
-    await state.update_data(all_messages=all_messages)
+@dp.callback_query(AdminState.default_settings)
+async def handle_setting_choice(call: CallbackQuery, state: FSMContext):
+    if call.data == 'back':
+        kb = await keyboards.get_main_menu_kb()
+        text = 'Choose your option:'
 
-    if len(all_messages.keys()) >= 1:
-        text = await escape_markdown_v2(text='Here is your clients messages (press button to get detailed preview):')
+        await call.message.edit_text(text=text, reply_markup=kb)
+        await state.set_state(AdminState.main_menu)
 
     else:
-        text = await escape_markdown_v2(text='You have no messages. Press button below to add client or message.')
+        settings_mapper = {'market_cap': 'Market cap',
+                           'volume': 'Volume',
+                           'liquidity': 'Liquidity',
+                           'price_change': 'Price change',
+                           'transaction_count': 'Transaction count',
+                           'holders': 'Holders',
+                           'renounced': 'Renounced'}
 
-    kb = await keyboards.get_main_menu_kb(all_messages=all_messages)
+        back_kb = await keyboards.get_back_button()
+
+        setting = settings_mapper.get(call.data)
+        await state.update_data(update_setting=setting)
+        if setting == 'Holders':
+            text = texts.holders_text.format(setting)
+            await state.set_state(AdminState.holders)
+            await call.message.edit_text(text=text,
+                                         reply_markup=back_kb)
+
+        elif setting == 'Renounced':
+            text = texts.renounced_text.format(setting)
+            kb = await keyboards.get_renounced_kb(admin=True)
+            await state.set_state(AdminState.renounced)
+            await call.message.edit_text(text=text,
+                                         reply_markup=kb)
+
+        else:
+            text = texts.basic_text.format(setting)
+            await state.set_state(AdminState.basic_settings)
+            await call.message.edit_text(text=text,
+                                         reply_markup=back_kb)
+
+
+@dp.callback_query(filters.BackToAdminSettingsChoice())
+async def handle_back_to_settings(call: CallbackQuery, state: FSMContext):
+    kb = await keyboards.get_settings_kb()
+
+    await state.set_state(AdminState.default_settings)
+    default_settings = await DB.default_settings_crud.read(id_=1)
+    message_text = texts.user_settings.format(default_settings.market_cap_max,
+                                              default_settings.market_cap_min,
+                                              default_settings.volume_5_minute_min,
+                                              default_settings.volume_1_hour_min,
+                                              default_settings.liquidity_min,
+                                              default_settings.liquidity_max,
+                                              default_settings.price_change_5_minute_min,
+                                              default_settings.price_change_1_hour_min,
+                                              default_settings.transaction_count_5_minute_min,
+                                              default_settings.transaction_count_1_hour_min,
+                                              default_settings.holders_min,
+                                              default_settings.renounced)
+
+    await call.message.edit_text(text=message_text,
+                                 reply_markup=kb)
+    await state.set_state(AdminState.default_settings)
+
+
+@dp.message(AdminState.basic_settings)
+async def handle_settings_update(message: Message, state: FSMContext):
+    state_data = await state.get_data()
+    chosen_setting = state_data['update_setting']
+    settings_mapper = {'Market cap': ['market_cap_min', 'market_cap_max'],
+                       'Volume': ['volume_5_minute_min', 'volume_1_hour_min'],
+                       'Liquidity': ['liquidity_min', 'liquidity_max'],
+                       'Price change': ['price_change_5_minute_min', 'price_change_1_hour_min'],
+                       'Transaction count': ['transaction_count_5_minute_min', 'transaction_count_1_hour_min']}
+
+    setting_to_update = settings_mapper.get(chosen_setting)
+    pattern = '^\d+-\d+$'
+    updated_value = message.text.replace(' ', '')
+    if re.match(pattern=pattern, string=updated_value):
+        values = updated_value.split('-')
+        min_value = values[0]
+        max_value = values[1]
+        update_data = {setting_to_update[0]: min_value,
+                       setting_to_update[1]: max_value}
+
+        await DB.default_settings_crud.update(id_=1,
+                                              **update_data)
+
+        default_settings = await DB.default_settings_crud.read(id_=1)
+        message_text = (texts.settings_updated.format(chosen_setting, f'{min_value} - {max_value}') +
+                        '\n\n' +
+                        texts.user_settings.format(default_settings.market_cap_max,
+                                                   default_settings.market_cap_min,
+                                                   default_settings.volume_5_minute_min,
+                                                   default_settings.volume_1_hour_min,
+                                                   default_settings.liquidity_min,
+                                                   default_settings.liquidity_max,
+                                                   default_settings.price_change_5_minute_min,
+                                                   default_settings.price_change_1_hour_min,
+                                                   default_settings.transaction_count_5_minute_min,
+                                                   default_settings.transaction_count_1_hour_min,
+                                                   default_settings.holders_min,
+                                                   default_settings.renounced))
+
+        kb = await keyboards.get_settings_kb()
+        await state.set_state(AdminState.default_settings)
+        cur_state = await state.get_state()
+        await message.answer(text=message_text,
+                             reply_markup=kb)
+
+    else:
+        kb = await keyboards.get_back_button()
+        text = texts.incorrect_settings_input.format(chosen_setting, 'digits - digits (example 123 - 123)')
+        await message.answer(text=text, reply_markup=kb)
+
+
+@dp.callback_query(AdminState.renounced)
+async def handle_renounced_choice(call: CallbackQuery, state: FSMContext):
+    true_false_mapper = {'true': True,
+                         'false': False}
+
+    settings = {'renounced': true_false_mapper.get(call.data)}
+    await DB.default_settings_crud.update(id_=1,
+                                          **settings)
+
+    default_settings = await DB.default_settings_crud.read(id_=1)
+    message_text = (texts.renounced_updated.format(true_false_mapper.get(call.data)) +
+                    '\n\n' +
+                    texts.user_settings.format(default_settings.market_cap_max,
+                                               default_settings.market_cap_min,
+                                               default_settings.volume_5_minute_min,
+                                               default_settings.volume_1_hour_min,
+                                               default_settings.liquidity_min,
+                                               default_settings.liquidity_max,
+                                               default_settings.price_change_5_minute_min,
+                                               default_settings.price_change_1_hour_min,
+                                               default_settings.transaction_count_5_minute_min,
+                                               default_settings.transaction_count_1_hour_min,
+                                               default_settings.holders_min,
+                                               default_settings.renounced))
+    kb = await keyboards.get_settings_kb()
+    await state.set_state(AdminState.default_settings)
+    await call.message.edit_text(text=message_text,
+                                 reply_markup=kb)
+
+
+@dp.message(AdminState.holders)
+async def handle_holders_settings(message: Message, state: FSMContext):
+    new_settings = message.text
+    if new_settings.isdigit():
+        settings = {'holders_min': new_settings}
+        await DB.user_settings_crud.update(id_=1,
+                                           **settings)
+
+        default_settings = await DB.default_settings_crud.read(id_=1)
+        message_text = (texts.settings_updated.format('Holders', new_settings) +
+                        '\n\n' +
+                        texts.user_settings.format(default_settings.market_cap_max,
+                                                   default_settings.market_cap_min,
+                                                   default_settings.volume_5_minute_min,
+                                                   default_settings.volume_1_hour_min,
+                                                   default_settings.liquidity_min,
+                                                   default_settings.liquidity_max,
+                                                   default_settings.price_change_5_minute_min,
+                                                   default_settings.price_change_1_hour_min,
+                                                   default_settings.transaction_count_5_minute_min,
+                                                   default_settings.transaction_count_1_hour_min,
+                                                   default_settings.holders_min,
+                                                   default_settings.renounced))
+        kb = await keyboards.get_settings_kb()
+        await state.set_state(AdminState.default_settings)
+        await message.answer(text=message_text,
+                             reply_markup=kb)
+
+    else:
+        kb = await keyboards.get_back_button()
+        text = texts.incorrect_settings_input.format('Holders', 'digits only (example - 1234)')
+        await message.answer(text=text,
+                             reply_markup=kb)
+
+
+@dp.message(filters.IsAdmin())
+async def handle_admin_message(message: Message, state: FSMContext):
+    kb = await keyboards.get_main_menu_kb()
+    text = 'Choose your option:'
 
     await message.answer(text=text, reply_markup=kb)
     await state.set_state(AdminState.main_menu)
@@ -745,6 +959,23 @@ async def exe_bot():
     """Function to start a bot"""
     print('BOT started')
     logging.info(msg="BOT started")
+    default_settings = {
+        "id": 1,
+        "market_cap_min": 10000,
+        "market_cap_max": 4000000,
+        "volume_5_minute_min": 10,
+        "volume_1_hour_min": 10,
+        "liquidity_min": 15000,
+        "liquidity_max": 400000,
+        "price_change_5_minute_min": 10,
+        "price_change_1_hour_min": 10,
+        "transaction_count_5_minute_min": 10,
+        "transaction_count_1_hour_min": 10,
+        "holders_min": 25,
+        "renounced": False,
+        "pair_age_max": 86400
+    }
+    # await DB.default_settings_crud.create(**default_settings)
 
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)

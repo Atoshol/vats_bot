@@ -4,6 +4,7 @@ from db.models.message import MessageCRUD, MessageLastIndexCRUD
 from db.models.token import TokenPairCRUD, TokenLinkCRUD
 from db.models.user import UserCRUD
 from db.models.user_settings import UserSettingsCRUD
+from db.models.default import SettingsCRUD
 
 
 class DB:
@@ -17,3 +18,4 @@ class DB:
     message_crud = MessageCRUD()
     messageIndex_crud = MessageLastIndexCRUD()
     client_crud = ClientCRUD()
+    default_settings_crud = SettingsCRUD()

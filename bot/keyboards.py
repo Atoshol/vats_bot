@@ -3,8 +3,7 @@ from datetime import datetime
 import calendar
 from db.facade import DB
 
-
-async def get_main_menu_kb(all_messages: dict):
+async def messages_menu(all_messages: dict):
     buttons = []
     messages_buttons = [[InlineKeyboardButton(text=message_data['text'],
                                               callback_data=str(message_id))]
@@ -15,8 +14,28 @@ async def get_main_menu_kb(all_messages: dict):
                                       InlineKeyboardButton(text='Add new client',
                                                            callback_data='add_client')]
 
+    back_button = [InlineKeyboardButton(text='Back',
+                                        callback_data='back')]
+
     buttons.extend(messages_buttons)
     buttons.append(add_client_add_message_buttons)
+    buttons.append(back_button)
+
+    kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+    return kb
+
+
+async def get_main_menu_kb():
+    buttons = []
+    messages_buttons = [InlineKeyboardButton(text='Messages',
+                                             callback_data='messages')]
+
+    settings_button = [InlineKeyboardButton(text='Default settings',
+                                            callback_data='settings')]
+
+    buttons.append(messages_buttons)
+    buttons.append(settings_button)
 
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -193,9 +212,12 @@ async def get_settings_kb():
     return kb
 
 
-async def get_renounced_kb(user_id: int):
-    user_settings = await DB.user_settings_crud.read(id_=user_id)
-    renounce = user_settings.renounced
+async def get_renounced_kb(user_id: int = None, admin: bool = False):
+    if admin:
+        settings = await DB.default_settings_crud.read(id_=1)
+    else:
+        settings = await DB.user_settings_crud.read(id_=user_id)
+    renounce = settings.renounced
     check_mark = "\u2714"
     if renounce:
         buttons = [[InlineKeyboardButton(text=f'True {check_mark}',
