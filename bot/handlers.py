@@ -624,8 +624,8 @@ async def handle_holders_settings(message: Message, state: FSMContext):
     new_settings = message.text
     if new_settings.isdigit():
         settings = {'holders_min': new_settings}
-        await DB.user_settings_crud.update(id_=1,
-                                           **settings)
+        await DB.default_settings_crud.update(id_=1,
+                                              **settings)
 
         default_settings = await DB.default_settings_crud.read(id_=1)
         message_text = (texts.settings_updated.format('Holders', new_settings) +
