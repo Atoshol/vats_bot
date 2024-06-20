@@ -79,8 +79,9 @@ class BackToAdminSettingsChoice(Filter):
 
 class UserAddedFilter(Filter):
     async def __call__(self, message: Message):
-        target_group_id = 1
-        if message.new_chat_members and message.chat.id == target_group_id:
+        # target_group_id = 1
+        # if message.new_chat_members and message.chat.id == target_group_id:
+        if message.new_chat_members:
             return True
         return False
 
