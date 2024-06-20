@@ -1,29 +1,29 @@
-greeting_for_non_registered_user = ("Welcome to DreamSage, {}, your path to dream wisdom!\n\n"
-                                    "What have you dreamed?")
-
-greeting_for_registered_user = ("Hey there, {}, good to see you again!\n\n"
-                                "What have you dreamed?")
-
-analyzing_texts = ['Analyzing...', 'Examining...', 'Investigating...', 'Assessing...', 'Evaluating...']
-
-analyzing_emotion_texts = ['Analyzing {} emotion...',
-                           'Examining {} emotion...',
-                           'Investigating {} emotion...',
-                           'Assessing {} emotion...',
-                           'Evaluating {} emotion...']
-
-generating_picture_texts = ['Generating image...',
-                            'Creating image...',
-                            'Producing image...',
-                            'Forming image...',
-                            'Developing image...']
-
-
-your_voice_dream = ("Here is your dream:\n"
-                    "{}")
-
-
-generating_meditation = "Generating meditation..."
+# greeting_for_non_registered_user = ("Welcome to DreamSage, {}, your path to dream wisdom!\n\n"
+#                                     "What have you dreamed?")
+#
+# greeting_for_registered_user = ("Hey there, {}, good to see you again!\n\n"
+#                                 "What have you dreamed?")
+#
+# analyzing_texts = ['Analyzing...', 'Examining...', 'Investigating...', 'Assessing...', 'Evaluating...']
+#
+# analyzing_emotion_texts = ['Analyzing {} emotion...',
+#                            'Examining {} emotion...',
+#                            'Investigating {} emotion...',
+#                            'Assessing {} emotion...',
+#                            'Evaluating {} emotion...']
+#
+# generating_picture_texts = ['Generating image...',
+#                             'Creating image...',
+#                             'Producing image...',
+#                             'Forming image...',
+#                             'Developing image...']
+#
+#
+# your_voice_dream = ("Here is your dream:\n"
+#                     "{}")
+#
+#
+# generating_meditation = "Generating meditation..."
 
 
 not_subscribed_user = ("Hi, {}!\n\n"
@@ -40,8 +40,8 @@ subscribe_plans = ('Available subscription plans:\n\n'
 user_settings = ('Here is you current settings:\n\n'
                  '- market cap max: {}\n'
                  '- market cap min: {}\n'
-                 '- volume 5 minute_min: {}\n'
-                 '- volume 1 hour_min: {}\n'
+                 '- volume 5 minute min: {}\n'
+                 '- volume 1 hour min: {}\n'
                  '- liquidity min: {}\n'
                  '- liquidity max: {}\n'
                  '- price change 5 minute min: {}\n'
@@ -59,7 +59,7 @@ renounced_text = ('Please update your {} settings\n\n'
                   '(choose True or False)')
 
 basic_text = ('Please update your {} settings\n\n'
-              '(must be in this format: min(digit) - max(digit)):')
+              '(must be in this format: digit - digit):')
 
 renounced_updated = 'Renounce updated to {}!'
 
