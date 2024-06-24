@@ -962,7 +962,7 @@ async def exe_bot():
     default_settings = {
         "id": 1,
         "market_cap_min": 10000,
-        "market_cap_max": 4000000,
+        "market_cap_max": 400000,
         "volume_5_minute_min": 10,
         "volume_1_hour_min": 10,
         "liquidity_min": 15000,
@@ -975,7 +975,7 @@ async def exe_bot():
         "renounced": False,
         "pair_age_max": 86400
     }
-    # await DB.default_settings_crud.create(**default_settings)
+    await DB.default_settings_crud.create(**default_settings)
 
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)

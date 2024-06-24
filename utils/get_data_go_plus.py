@@ -40,7 +40,6 @@ headers = {
 async def get_data_go_plus_by_address(chain, address):
     try:
         r = requests.get(url.format(chain=chains[chain], address=address))
-        print(r.json())
         if r.json()['result']:
             return r.json()['result'][address.lower()]
         return {}

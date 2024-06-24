@@ -3,6 +3,8 @@ from datetime import datetime
 import json
 import ssl
 import websockets
+from concurrent.futures import ThreadPoolExecutor
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from db.facade import DB
 from utils.functions import format_percentage_change, format_value, scan_links
 from utils.get_data_cg import get_cg
@@ -12,7 +14,7 @@ from utils.get_token_data import get_token_data_by_address
 from bot.main import bot
 
 db = DB()
-main_chat_id = -1002187981684
+main_chat_id = -1002185408863
 
 
 def unique_dicts(dicts_list):
@@ -20,7 +22,6 @@ def unique_dicts(dicts_list):
     unique_list = []
 
     for d in dicts_list:
-        # Convert dictionary to a sorted tuple of items
         dict_tuple = tuple(sorted(d.items()))
         if dict_tuple not in unique_set:
             unique_set.add(dict_tuple)
@@ -38,13 +39,19 @@ def format_large_number(number):
         return str(number)
 
 
-async def send_message_to_user(user_id, msg):
-    await bot.send_message(chat_id=user_id, text=msg, disable_web_page_preview=True)
+async def send_message_to_user(user_id, msg, kb):
+    await bot.send_message(chat_id=user_id,
+                           text=msg,
+                           reply_markup=kb,
+                           disable_web_page_preview=True)
 
 
-async def send_message_to_group(msg):
+async def send_message_to_group(msg, kb):
     try:
-        await bot.send_message(chat_id=main_chat_id, text=msg, disable_web_page_preview=True)
+        await bot.send_message(chat_id=main_chat_id,
+                               text=msg,
+                               reply_markup=kb,
+                               disable_web_page_preview=True)
     except Exception as e:
         print(f'{e}')
 
@@ -61,18 +68,16 @@ async def token_matches_default_settings(token_data):
         "liquidity": (default_settings["liquidity_min"] <= token_data.get("liquidity_usd", 0) <= default_settings[
             "liquidity_max"]),
         "price_change_5m": (default_settings["price_change_5_minute_min"] <= token_data.get("price_change_5m", 0)),
-        "price_change_1h": (default_settings["price_change_1_hour_min"] <= token_data.get("price_change_1h", 0)),
         "transaction_count_5m": (default_settings["transaction_count_5_minute_min"] <= token_data.get(
             "transaction_count_5_minute_min", 0)),
         "transaction_count_1h": (
                 default_settings["transaction_count_1_hour_min"] <= token_data.get("transaction_count_1_hour_min",
                                                                                    0)),
-        "holders": (token_data.get("holders", 0) >= default_settings["holders_min"]),
-        "renounced": (token_data.get("renounced") == default_settings["renounced"]),
+        "holders": (token_data.get("holders", 1) >= default_settings["holders_min"]),
+        "renounced": (token_data.get("renounced", False) == default_settings["renounced"]),
         "pair_age": ((datetime.now().timestamp() - token_data.get("pair_created_at", 0)) <= default_settings[
             "pair_age_max"])
     }
-    # Print all checks and their results
     for key, value in checks.items():
         print(key, value)
     return all(checks.values())
@@ -81,7 +86,8 @@ async def token_matches_default_settings(token_data):
 async def form_message(new_data, links):
     risk_level_link = "https://example.com/risk-level"  # Replace with actual link
 
-    link_str = " | ".join([f'<a href="{link.get("url")}">{link.get("type").capitalize()}</a>' for link in links])
+    link_str = " | ".join([f'<a href="{link.get("url")}">' + \
+                            f'{link.get("type").capitalize()}</a>' for link in links])
     address = new_data.get('contract_address')
     owner_address = new_data.get('owner_address')
     if owner_address != 0:
@@ -89,11 +95,14 @@ async def form_message(new_data, links):
     else:
         owner_str = 'N/A'
     try:
-        owner_link = scan_links[f"{new_data.get('chain_name')}"].format(address) if owner_address != 'N/A' else 'N/A'
+        owner_link = scan_links[f"{new_data.get('chain_name')}"].format(owner_address) if owner_address != 'N/A' else 'N/A'
+        contract_link = scan_links[f"{new_data.get('chain_name')}"].format(address)
     except KeyError:
-        owner_link = scan_links['ethereum'].format(address) if owner_address != 'N/A' else 'N/A'
+        owner_link = scan_links['ethereum'].format(owner_address) if owner_address != 'N/A' else 'N/A'
+        contract_link = scan_links['ethereum'].format(address)
     message = f"""
-📌 <b>{new_data.get('name', "N/A")}</b> | <b>Risk Level:</b> {new_data.get('risk_level', "N/A")}\n\n
+📌 <b><a href="{contract_link}">{new_data.get('name', "N/A")}</a></b> | <b>Risk Level:</b> {new_data.get('risk_level', "N/A")}
+
 
 👨‍💻 <b>Deployer: </b><a href='{owner_link}'>{owner_str}</a>
 👤 <b>Owner:</b> RENOUNCED: {'Yes' if new_data.get('renounced', False) else 'No'}
@@ -110,19 +119,32 @@ async def form_message(new_data, links):
 
 💲 <b>Price:</b> ${format_value(new_data.get('price'))}
 💵 <b>Launch MC:</b> N/A
-👆 <b>ATH:</b> $7.58M (1552x)
+👆 <b>ATH:</b> ${new_data.get('ath_usd', 'N/A')}
 🔗 {link_str}
 
 📊 <b>TS:</b> {format_large_number(new_data.get('transaction_count_24_hour_min_buys', 0) +
                                   new_data.get('transaction_count_24_hour_min_sells', 0))}
-👩‍👧‍👦 <b>Holders:</b> {format_large_number(new_data.get('holders', 0))} | <b>Top 10:</b> {new_data.get('top10_percentage')}
+👩‍👧‍👦 <b>Holders:</b> {format_large_number(new_data.get('holders', 0))} | <b>Top 10:</b> {new_data.get('top10_percentage')}%
 💸 <b>Airdrops:</b> CLEAN No Airdrops!
 
 <code>{new_data.get('contract_address')}</code> (click to copy)
 
     """
 
-    return message
+    kb = [
+        [
+            InlineKeyboardButton(text='BananaBot', url=f'https://t.me/BananaGunSniper_bot?start=snp_falcon_{address}'),
+            InlineKeyboardButton(text='MaestroBot', url=f'https://t.me/maestro?start={address}-spaceman_vats')
+        ],
+        [
+            InlineKeyboardButton(text='DexTools', url=f"https://www.dextools.io/app/en/"
+                                                      f"{new_data.get('chain_name')}/pair-explorer/{address}"),
+            InlineKeyboardButton(text='DexScreener', url=f"https://dexscreener.com/{new_data.get('chain_name')}/{address}")
+        ]
+    ]
+    markup = InlineKeyboardMarkup(inline_keyboard=kb)
+
+    return message, markup
 
 
 async def on_message(message):
@@ -154,10 +176,9 @@ async def on_message(message):
         transaction_count_1_hour_min_sells = i.get('txns', {}).get('h1', {}).get('sells', 0)
         transaction_count_24_hour_min_buys = i.get('txns', {}).get('h24', {}).get('buys', 0)
         transaction_count_24_hour_min_sells = i.get('txns', {}).get('h24', {}).get('sells', 0)
-
+        print(f"Got {name}, {address}, {chain_name}")
         current_time = datetime.now().timestamp()
-        # current_time - pair_created_at > 86400 or
-        if (current_time - pair_created_at > 86400 or
+        if (current_time - pair_created_at > 1286400 or
                 await db.tokenPair_crud.check_contract(contract_address=address)):
             print('SKIPPED ___________________________________')
             continue
@@ -174,6 +195,7 @@ async def on_message(message):
         links = []
         if token_data.get('cg') is not None:
             cg_id = token_data['cg']['id']
+            print(cg_id)
             cg_data = get_cg(cg_id)
             ath_usd = cg_data['market_data']['ath']['usd']
         else:
@@ -222,7 +244,7 @@ async def on_message(message):
             'owner_supply': go_plus.get('owner_balance', 0),
             'owner_address': go_plus.get('creator_address', 0),
             'total_supply': go_plus.get('total_supply', 0),
-            'top10_percentage': round(sum([float(i['percent']) for i in go_plus.get('holders', [{'percent': 0}])]), 2),
+            'top10_percentage': round(sum([float(i['percent']) for i in go_plus.get('holders', [{'percent': 0}])]), 2) * 100,
             'risk_level': risk_level_data.get('risk', "N/A"),
             'transaction_count_24_hour_min_buys': transaction_count_24_hour_min_buys,
             'transaction_count_24_hour_min_sells': transaction_count_24_hour_min_sells,
@@ -231,10 +253,10 @@ async def on_message(message):
             **extracted_data
         }
 
-        message = await form_message(new_data, links)
+        message, kb = await form_message(new_data, links)
 
         if await token_matches_default_settings(new_data):
-            await send_message_to_group(message)
+            await send_message_to_group(message, kb)
             token = await db.tokenPair_crud.create(**new_data)
             if token is not None:
                 for v in links:
@@ -246,16 +268,15 @@ async def on_message(message):
                     await db.tokenLink_crud.create(**link_data)
         matching_users = await db.user_settings_crud.get_matching_users(new_data)
         for user_id in matching_users:
-            await send_message_to_user(user_id, message)
+            await send_message_to_user(user_id, message, kb)
 
 
-async def on_connect():
-    uri = "wss://io.dexscreener.com/dex/screener/pairs/h24/1"
+async def on_connect(uri):
     headers = {
         "Host": "io.dexscreener.com",
         "x-client-name": "dex-screener-app",
-        "Cookie": "__cf_bm=XD_d..rcFEqIntyzwA6xgB3F3I54tIp1IxPse0Bl2Eo-1713211807-1.0.1.1-8DukO0ZUdbeTXbHxP0dkTYSQ.ttQ7z3dIuG8icHb5x5jgmV6uFQ5eo7I211xx0IwBlKeETnQWw_gvSPAh1OYvtLyDUl6kyUKHZ2C13iECnY",
-        "Sec-WebSocket-Key": "dVSX78Ahq4VVu2IU1UUk/g==",
+        # "Cookie": "__cf_bm=XD_d..rcFEqIntyzwA6xgB3F3I54tIp1IxPse0Bl2Eo-1713211807-1.0.1.1-8DukO0ZUdbeTXbHxP0dkTYSQ.ttQ7z3dIuG8icHb5x5jgmV6uFQ5eo7I211xx0IwBlKeETnQWw_gvSPAh1OYvtLyDUl6kyUKHZ2C13iECnY",
+        # "Sec-WebSocket-Key": "dVSX78Ahq4VVu2IU1UUk/g==",
         "Sec-WebSocket-Version": "13",
         "Upgrade": "websocket",
         "Origin": "https://io.dexscreener.com",
@@ -267,27 +288,34 @@ async def on_connect():
     ssl_context.check_hostname = False
     ssl_context.verify_mode = ssl.CERT_NONE
 
-    async with websockets.connect(uri, extra_headers=headers, ssl=ssl_context) as websocket:
-        print("WebSocket connection opened")
-        while True:
-            try:
-                message = await websocket.recv()
-                await on_message(message)
-            except websockets.ConnectionClosed:
-                print("WebSocket connection closed")
-                break
-            # except Exception as e:
-            #     print(f"Error: {e}")
-            #     await asyncio.sleep(5)  # Retry after a delay
+    while True:
+        try:
+            async with websockets.connect(uri, extra_headers=headers, ssl=ssl_context) as websocket:
+                print(f"WebSocket connection opened to {uri}")
+                while True:
+                    try:
+                        message = await websocket.recv()
+                        await on_message(message)
+                    except websockets.ConnectionClosed:
+                        print("WebSocket connection closed, reconnecting...")
+                        break
+        except Exception as e:
+            print(f"Connection failed: {e}, retrying in 5 seconds...")
+            await asyncio.sleep(5)
 
 
 async def main():
-    while True:
-        # try:
-        await on_connect()
-        # except Exception as e:
-        #     print(f"Connection failed: {e}")
-        #     await asyncio.sleep(5)  # Retry after a delay
+    uri_links = [
+        'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=bsc',
+        'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=solana',
+        'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=ethereum',
+        'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=base',
+    ]
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        loop = asyncio.get_running_loop()
+        tasks = [loop.run_in_executor(executor, asyncio.run, on_connect(uri)) for uri in uri_links]
+        await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":

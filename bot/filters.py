@@ -1,6 +1,4 @@
 """This module contains custom created filters: IsAdminProgramState, NewChatMembersFilter, IsSuperAdmin"""
-
-
 from aiogram.filters import Filter
 from aiogram.types import CallbackQuery, Message
 from aiogram.fsm.context import FSMContext
@@ -9,12 +7,10 @@ from db.facade import DB
 from aiogram.types import ChatMemberUpdated
 
 
-
 class IsAdmin(Filter):
     async def __call__(self, message: Message):
 
-        #admins = [341302373, 669944831, 282659644, 6508260399]
-        admins = [669944831]
+        admins = [669944831, 6831187637, 341302373]
 
         if message.from_user.id in admins and message.chat.type == 'private':
             return True
