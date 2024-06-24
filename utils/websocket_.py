@@ -14,7 +14,8 @@ from utils.get_token_data import get_token_data_by_address
 from bot.main import bot
 
 db = DB()
-main_chat_id = -1002185408863
+# main_chat_id = -1002185408863 # PROD
+main_chat_id = -1002187981684
 
 
 def unique_dicts(dicts_list):
@@ -78,8 +79,8 @@ async def token_matches_default_settings(token_data):
         "pair_age": ((datetime.now().timestamp() - token_data.get("pair_created_at", 0)) <= default_settings[
             "pair_age_max"])
     }
-    for key, value in checks.items():
-        print(key, value)
+    # for key, value in checks.items():
+    #     print(key, value)
     return all(checks.values())
 
 
@@ -176,11 +177,11 @@ async def on_message(message):
         transaction_count_1_hour_min_sells = i.get('txns', {}).get('h1', {}).get('sells', 0)
         transaction_count_24_hour_min_buys = i.get('txns', {}).get('h24', {}).get('buys', 0)
         transaction_count_24_hour_min_sells = i.get('txns', {}).get('h24', {}).get('sells', 0)
-        print(f"Got {name}, {address}, {chain_name}")
+        # print(f"Got {name}, {address}, {chain_name}")
         current_time = datetime.now().timestamp()
         if (current_time - pair_created_at > 1286400 or
                 await db.tokenPair_crud.check_contract(contract_address=address)):
-            print('SKIPPED ___________________________________')
+            # print('SKIPPED ___________________________________')
             continue
         token_data = await get_token_data_by_address(chain_name, address)
         if isinstance(token_data, str):
@@ -195,7 +196,7 @@ async def on_message(message):
         links = []
         if token_data.get('cg') is not None:
             cg_id = token_data['cg']['id']
-            print(cg_id)
+            # print(cg_id)
             cg_data = get_cg(cg_id)
             ath_usd = cg_data['market_data']['ath']['usd']
         else:
@@ -312,10 +313,13 @@ async def main():
         'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=base',
     ]
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        loop = asyncio.get_running_loop()
-        tasks = [loop.run_in_executor(executor, asyncio.run, on_connect(uri)) for uri in uri_links]
-        await asyncio.gather(*tasks)
+    # with ThreadPoolExecutor(max_workers=4) as executor:
+    #     loop = asyncio.get_running_loop()
+    #     tasks = [loop.run_in_executor(executor, asyncio.run, on_connect(uri)) for uri in uri_links]
+    #     await asyncio.gather(*tasks)
+
+    tasks = [on_connect(uri) for worker_id, uri in enumerate(uri_links, start=1)]
+    await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":

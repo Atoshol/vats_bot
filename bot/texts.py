@@ -52,7 +52,7 @@ user_settings = ('Here is you current settings:\n\n'
                  '- renounced: {}\n\n'
                  'To change settings press button below.')
 
-holders_text = ('Please update your {} settings\n\n'
+holders_text = ('Please update your minimum Holders amount settings\n\n'
                 '(must be digits):')
 
 renounced_text = ('Please update your {} settings\n\n'
