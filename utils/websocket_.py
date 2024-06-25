@@ -79,8 +79,8 @@ async def token_matches_default_settings(token_data):
         "pair_age": ((datetime.now().timestamp() - token_data.get("pair_created_at", 0)) <= default_settings[
             "pair_age_max"])
     }
-    # for key, value in checks.items():
-    #     print(key, value)
+    for key, value in checks.items():
+        print(key, value)
     return all(checks.values())
 
 
@@ -177,11 +177,11 @@ async def on_message(message):
         transaction_count_1_hour_min_sells = i.get('txns', {}).get('h1', {}).get('sells', 0)
         transaction_count_24_hour_min_buys = i.get('txns', {}).get('h24', {}).get('buys', 0)
         transaction_count_24_hour_min_sells = i.get('txns', {}).get('h24', {}).get('sells', 0)
-        # print(f"Got {name}, {address}, {chain_name}")
+        print(f"Got {name}, {address}, {chain_name}")
         current_time = datetime.now().timestamp()
         if (current_time - pair_created_at > 1286400 or
                 await db.tokenPair_crud.check_contract(contract_address=address)):
-            # print('SKIPPED ___________________________________')
+            print('SKIPPED ___________________________________')
             continue
         token_data = await get_token_data_by_address(chain_name, address)
         if isinstance(token_data, str):
@@ -191,7 +191,7 @@ async def on_message(message):
                 token_data = {"error": "Failed to decode token data"}
 
         risk_level_data = await get_data_honeypot_is(address=address)
-        go_plus = await get_data_go_plus_by_address(chain=chain_name, address=address)
+
         extracted_data = {}
         links = []
         if token_data.get('cg') is not None:
@@ -242,10 +242,6 @@ async def on_message(message):
             "tax_buy": risk_level_data.get('buy_tax', 0),
             "tax_sell": risk_level_data.get('sell_tax', 0),
             "tax_transfer": risk_level_data.get('transfer_tax', 0),
-            'owner_supply': go_plus.get('owner_balance', 0),
-            'owner_address': go_plus.get('creator_address', 0),
-            'total_supply': go_plus.get('total_supply', 0),
-            'top10_percentage': round(sum([float(i['percent']) for i in go_plus.get('holders', [{'percent': 0}])]), 2) * 100,
             'risk_level': risk_level_data.get('risk', "N/A"),
             'transaction_count_24_hour_min_buys': transaction_count_24_hour_min_buys,
             'transaction_count_24_hour_min_sells': transaction_count_24_hour_min_sells,
@@ -257,6 +253,15 @@ async def on_message(message):
         message, kb = await form_message(new_data, links)
 
         if await token_matches_default_settings(new_data):
+            go_plus = await get_data_go_plus_by_address(chain=chain_name, address=address)
+            gp = {
+                'owner_supply': go_plus.get('owner_balance', 0),
+                'owner_address': go_plus.get('creator_address', 0),
+                'total_supply': go_plus.get('total_supply', 0),
+                'top10_percentage': round(sum([float(i['percent']) for i in go_plus.get('holders', [{'percent': 0}])]),
+                                          2) * 100,
+            }
+            new_data.update(gp)
             await send_message_to_group(message, kb)
             token = await db.tokenPair_crud.create(**new_data)
             if token is not None:
@@ -312,11 +317,6 @@ async def main():
         'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=ethereum',
         'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=base',
     ]
-
-    # with ThreadPoolExecutor(max_workers=4) as executor:
-    #     loop = asyncio.get_running_loop()
-    #     tasks = [loop.run_in_executor(executor, asyncio.run, on_connect(uri)) for uri in uri_links]
-    #     await asyncio.gather(*tasks)
 
     tasks = [on_connect(uri) for worker_id, uri in enumerate(uri_links, start=1)]
     await asyncio.gather(*tasks)
