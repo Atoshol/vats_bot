@@ -24,6 +24,7 @@ class TokenPair(Base):
     volume_24h = Column(Float, nullable=False, default=0.0)
     liquidity_usd = Column(Float, nullable=False, default=0.0)
     market_cap = Column(Float, nullable=False, default=0.0)
+    launch_market_cap = Column(Float, nullable=False, default=0.0)
     risk_level = Column(String, nullable=False, default="low")
     transaction_count_5_minute_min = Column(Integer, nullable=False, default=0)
     transaction_count_1_hour_min = Column(Integer, nullable=False, default=0)

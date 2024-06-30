@@ -14,6 +14,8 @@ class Settings(Base):
     volume_1_hour_min = Column(Float, nullable=False, default=10)
     liquidity_min = Column(BigInteger, nullable=False, default=15000)
     liquidity_max = Column(BigInteger, nullable=False, default=400000)
+    lp_locked = Column(Boolean, nullable=False, default=False)
+    lp_burned = Column(Boolean, nullable=False, default=False)
     price_change_5_minute_min = Column(Float, nullable=False, default=10)
     price_change_1_hour_min = Column(Float, nullable=False, default=10)
     transaction_count_5_minute_min = Column(Integer, nullable=False, default=10)

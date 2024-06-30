@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime
 import json
 import ssl
+from pprint import pprint
 import websockets
 from concurrent.futures import ThreadPoolExecutor
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -79,8 +80,8 @@ async def token_matches_default_settings(token_data):
         "pair_age": ((datetime.now().timestamp() - token_data.get("pair_created_at", 0)) <= default_settings[
             "pair_age_max"])
     }
-    for key, value in checks.items():
-        print(key, value)
+    # for key, value in checks.items():
+    #     print(key, value)
     return all(checks.values())
 
 
@@ -106,27 +107,25 @@ async def form_message(new_data, links):
 
 
 👨‍💻 <b>Deployer: </b><a href='{owner_link}'>{owner_str}</a>
-👤 <b>Owner:</b> RENOUNCED: {'Yes' if new_data.get('renounced', False) else 'No'}
+👤 <b>Owner:</b> {'RENOUNCED' if new_data.get('renounced', False) else owner_str}
 🔶 <b>Chain:</b> {new_data.get('chain_name')} | ⚖️️ Age: {int((datetime.now().timestamp() -
                                                    new_data.get('pair_created_at')) / 3600)} hours
 
 💰 <b>MC:</b> ${format_large_number(new_data.get('market_cap'))} | <b>Liq:</b> ${format_large_number(new_data.get('liquidity_usd'))}
-🔒 <b>LP Lock: </b> N/A <b>Burned:</b> {new_data.get('percentage', "N/A")}%
-💳 <b>Tax:</b> B: {format_percentage_change(new_data.get('tax_buy', 'N/A'))}% | S: {format_percentage_change(new_data.get(
-        'tax_sell', 'N/A'))}% | T: {format_percentage_change(new_data.get('tax_transfer', 'N/A'))}%
-📈 <b>24h:</b> {format_percentage_change(new_data.get('price_change_24h'))}% | V:  {format_large_number(
+🔒 <b>LP Lock: </b> {new_data.get('liquidity_lock', "N/A")}% <b>Burned:</b> {new_data.get('liquidity_burned', "N/A")}%
+💳 <b>Tax:</b> B: {round(new_data.get('tax_buy', 'N/A'), 3)}% | S: {round(new_data.get('tax_sell', 'N/A'), 3)}% | T: {
+    round(new_data.get('tax_transfer', 'N/A'), 3)}%
+📈 <b>24h:</b> {format_percentage_change(new_data.get('price_change_24h'))}% | V: {format_large_number(
         new_data.get('volume_24h'))} | B: {format_large_number(new_data.get('transaction_count_24_hour_min_buys', 'N/A'))} S: {
     format_large_number(new_data.get('transaction_count_24_hour_min_sells', 'N/A'))}
 
 💲 <b>Price:</b> ${format_value(new_data.get('price'))}
-💵 <b>Launch MC:</b> N/A
-👆 <b>ATH:</b> ${new_data.get('ath_usd', 'N/A')}
+💵 <b>Launch MC:</b> ${format_large_number(new_data.get('launch_market_cap', 'N/A'))}
 🔗 {link_str}
 
 📊 <b>TS:</b> {format_large_number(new_data.get('transaction_count_24_hour_min_buys', 0) +
                                   new_data.get('transaction_count_24_hour_min_sells', 0))}
 👩‍👧‍👦 <b>Holders:</b> {format_large_number(new_data.get('holders', 0))} | <b>Top 10:</b> {new_data.get('top10_percentage')}%
-💸 <b>Airdrops:</b> CLEAN No Airdrops!
 
 <code>{new_data.get('contract_address')}</code> (click to copy)
 
@@ -177,13 +176,22 @@ async def on_message(message):
         transaction_count_1_hour_min_sells = i.get('txns', {}).get('h1', {}).get('sells', 0)
         transaction_count_24_hour_min_buys = i.get('txns', {}).get('h24', {}).get('buys', 0)
         transaction_count_24_hour_min_sells = i.get('txns', {}).get('h24', {}).get('sells', 0)
+        try:
+            start_price = float(price_usd) / (1 + (float(price_change_24h) / 100))
+            launch_market_cap = (start_price / float(price_usd)) * float(market_cap)
+        except ZeroDivisionError:
+            continue
         print(f"Got {name}, {address}, {chain_name}")
         current_time = datetime.now().timestamp()
         if (current_time - pair_created_at > 1286400 or
                 await db.tokenPair_crud.check_contract(contract_address=address)):
             print('SKIPPED ___________________________________')
             continue
-        token_data = await get_token_data_by_address(chain_name, address)
+        if chain_name == 'solana':
+            continue
+            # token_data = await get_token_data_by_address(chain_name, address)
+        else:
+            token_data = await get_token_data_by_address(chain_name, address)
         if isinstance(token_data, str):
             try:
                 token_data = json.loads(token_data)
@@ -194,20 +202,9 @@ async def on_message(message):
 
         extracted_data = {}
         links = []
-        if token_data.get('cg') is not None:
-            cg_id = token_data['cg']['id']
-            # print(cg_id)
-            cg_data = get_cg(cg_id)
-            ath_usd = cg_data['market_data']['ath']['usd']
-        else:
-            ath_usd = 0
 
         if token_data.get('ll') is not None:
-            tag = token_data['ll']['locks'][0]['tag']
-            if tag == 'Burned':
-                percentage = sum([i['percentage'] for i in token_data['ll']['locks']])
-            else:
-                percentage = 0
+            percentage = sum([i['percentage'] for i in token_data['ll']['locks'] if i['tag'] == 'Burned'])
         else:
             percentage = 0
 
@@ -245,23 +242,34 @@ async def on_message(message):
             'risk_level': risk_level_data.get('risk', "N/A"),
             'transaction_count_24_hour_min_buys': transaction_count_24_hour_min_buys,
             'transaction_count_24_hour_min_sells': transaction_count_24_hour_min_sells,
-            'ath_usd': ath_usd,
+            'ath_usd': 0,
             'liquidity_burned': percentage,
+            'launch_market_cap': launch_market_cap,
             **extracted_data
         }
 
-        message, kb = await form_message(new_data, links)
-
         if await token_matches_default_settings(new_data):
             go_plus = await get_data_go_plus_by_address(chain=chain_name, address=address)
+            # print("GO PLUS INFO~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+            # pprint(go_plus)
+            lp_holders = go_plus.get('lp_holders')
+            if lp_holders:
+                percentage = int(sum([float(i['percent']) for i in lp_holders if i['is_locked'] == 1]) * 100)
+            else:
+                percentage = 0
             gp = {
                 'owner_supply': go_plus.get('owner_balance', 0),
                 'owner_address': go_plus.get('creator_address', 0),
                 'total_supply': go_plus.get('total_supply', 0),
+                'liquidity_lock': percentage,
                 'top10_percentage': round(sum([float(i['percent']) for i in go_plus.get('holders', [{'percent': 0}])]),
                                           2) * 100,
+                'holders': int(go_plus.get('holder_count', 0)),
             }
             new_data.update(gp)
+            # pprint(token_data)
+            # pprint(new_data)
+            message, kb = await form_message(new_data, links)
             await send_message_to_group(message, kb)
             token = await db.tokenPair_crud.create(**new_data)
             if token is not None:
