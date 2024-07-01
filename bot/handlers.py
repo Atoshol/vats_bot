@@ -128,6 +128,8 @@ async def handle_main_menu(call: CallbackQuery, state: FSMContext):
                                                   default_settings.transaction_count_5_minute_min,
                                                   default_settings.transaction_count_1_hour_min,
                                                   default_settings.holders_min,
+                                                  default_settings.lp_locked,
+                                                  default_settings.lp_burned,
                                                   default_settings.renounced)
 
         await call.message.edit_text(text=message_text,
@@ -488,7 +490,11 @@ async def handle_setting_choice(call: CallbackQuery, state: FSMContext):
                            'price_change': 'Price change',
                            'transaction_count': 'Transaction count',
                            'holders': 'Holders',
-                           'renounced': 'Renounced'}
+                           'renounced': 'Renounced',
+                           'lp_locked': 'Liquidity pool locked',
+                           'lp_burned': 'Liquidity poll burned'}
+
+        true_false_settings = ['Liquidity pool locked', 'Liquidity poll burned', 'Renounced']
 
         back_kb = await keyboards.get_back_button()
 
@@ -500,10 +506,10 @@ async def handle_setting_choice(call: CallbackQuery, state: FSMContext):
             await call.message.edit_text(text=text,
                                          reply_markup=back_kb)
 
-        elif setting == 'Renounced':
+        elif setting in true_false_settings:
             text = texts.renounced_text.format(setting)
             kb = await keyboards.get_renounced_kb(admin=True)
-            await state.set_state(AdminState.renounced)
+            await state.set_state(AdminState.true_false)
             await call.message.edit_text(text=text,
                                          reply_markup=kb)
 
@@ -531,6 +537,8 @@ async def handle_back_to_settings(call: CallbackQuery, state: FSMContext):
                                               default_settings.transaction_count_5_minute_min,
                                               default_settings.transaction_count_1_hour_min,
                                               default_settings.holders_min,
+                                              default_settings.lp_locked,
+                                              default_settings.lp_burned,
                                               default_settings.renounced)
 
     await call.message.edit_text(text=message_text,
@@ -575,6 +583,8 @@ async def handle_settings_update(message: Message, state: FSMContext):
                                                    default_settings.transaction_count_5_minute_min,
                                                    default_settings.transaction_count_1_hour_min,
                                                    default_settings.holders_min,
+                                                   default_settings.lp_locked,
+                                                   default_settings.lp_burned,
                                                    default_settings.renounced))
 
         kb = await keyboards.get_settings_kb()
@@ -589,7 +599,7 @@ async def handle_settings_update(message: Message, state: FSMContext):
         await message.answer(text=text, reply_markup=kb)
 
 
-@dp.callback_query(AdminState.renounced)
+@dp.callback_query(AdminState.true_false)
 async def handle_renounced_choice(call: CallbackQuery, state: FSMContext):
     true_false_mapper = {'true': True,
                          'false': False}
@@ -612,6 +622,8 @@ async def handle_renounced_choice(call: CallbackQuery, state: FSMContext):
                                                default_settings.transaction_count_5_minute_min,
                                                default_settings.transaction_count_1_hour_min,
                                                default_settings.holders_min,
+                                               default_settings.lp_locked,
+                                               default_settings.lp_burned,
                                                default_settings.renounced))
     kb = await keyboards.get_settings_kb()
     await state.set_state(AdminState.default_settings)
@@ -641,6 +653,8 @@ async def handle_holders_settings(message: Message, state: FSMContext):
                                                    default_settings.transaction_count_5_minute_min,
                                                    default_settings.transaction_count_1_hour_min,
                                                    default_settings.holders_min,
+                                                   default_settings.lp_locked,
+                                                   default_settings.lp_burned,
                                                    default_settings.renounced))
         kb = await keyboards.get_settings_kb()
         await state.set_state(AdminState.default_settings)
@@ -693,6 +707,8 @@ async def handle_setting_choice(call: CallbackQuery, state: FSMContext):
                                                   user_settings.transaction_count_5_minute_min,
                                                   user_settings.transaction_count_1_hour_min,
                                                   user_settings.holders_min,
+                                                  user_settings.lp_locked,
+                                                  user_settings.lp_burned,
                                                   user_settings.renounced)
 
         kb = await keyboards.get_subscriber_menu()
@@ -709,6 +725,8 @@ async def handle_setting_choice(call: CallbackQuery, state: FSMContext):
                            'holders': 'Holders',
                            'renounced': 'Renounced'}
 
+        true_false_settings = ['Liquidity pool locked', 'Liquidity poll burned', 'Renounced']
+
         back_kb = await keyboards.get_back_button()
 
         setting = settings_mapper.get(call.data)
@@ -719,10 +737,10 @@ async def handle_setting_choice(call: CallbackQuery, state: FSMContext):
             await call.message.edit_text(text=text,
                                          reply_markup=back_kb)
 
-        elif setting == 'Renounced':
+        elif setting in true_false_settings:
             text = texts.renounced_text.format(setting)
             kb = await keyboards.get_renounced_kb(user_id=call.from_user.id)
-            await state.set_state(SubscriberState.renounced)
+            await state.set_state(SubscriberState.true_false)
             await call.message.edit_text(text=text,
                                          reply_markup=kb)
 
@@ -781,6 +799,8 @@ async def handle_settings_update(message: Message, state: FSMContext):
                                                    user_settings.transaction_count_5_minute_min,
                                                    user_settings.transaction_count_1_hour_min,
                                                    user_settings.holders_min,
+                                                   user_settings.lp_locked,
+                                                   user_settings.lp_burned,
                                                    user_settings.renounced))
         kb = await keyboards.get_subscriber_menu()
         await state.set_state(SubscriberState.main_menu)
@@ -793,7 +813,7 @@ async def handle_settings_update(message: Message, state: FSMContext):
         await message.answer(text=text, reply_markup=kb)
 
 
-@dp.callback_query(SubscriberState.renounced)
+@dp.callback_query(SubscriberState.true_false)
 async def handle_renounced_choice(call: CallbackQuery, state: FSMContext):
     user_id = call.from_user.id
     true_false_mapper = {'true': True,
@@ -818,6 +838,8 @@ async def handle_renounced_choice(call: CallbackQuery, state: FSMContext):
                                                user_settings.transaction_count_5_minute_min,
                                                user_settings.transaction_count_1_hour_min,
                                                user_settings.holders_min,
+                                               user_settings.lp_locked,
+                                               user_settings.lp_burned,
                                                user_settings.renounced))
     kb = await keyboards.get_subscriber_menu()
     await state.set_state(SubscriberState.main_menu)
@@ -848,6 +870,8 @@ async def handle_holders_settings(message: Message, state: FSMContext):
                                                    user_settings.transaction_count_5_minute_min,
                                                    user_settings.transaction_count_1_hour_min,
                                                    user_settings.holders_min,
+                                                   user_settings.lp_locked,
+                                                   user_settings.lp_burned,
                                                    user_settings.renounced))
         kb = await keyboards.get_subscriber_menu()
         await state.set_state(SubscriberState.main_menu)
@@ -876,6 +900,8 @@ async def handle_subscriber_message(message: Message, state: FSMContext):
                                               user_settings.transaction_count_5_minute_min,
                                               user_settings.transaction_count_1_hour_min,
                                               user_settings.holders_min,
+                                              user_settings.lp_locked,
+                                              user_settings.lp_burned,
                                               user_settings.renounced)
 
     kb = await keyboards.get_subscriber_menu()

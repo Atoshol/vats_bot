@@ -49,6 +49,8 @@ user_settings = ('Here is you current settings:\n\n'
                  '- transaction count 5 minute min: {}\n'
                  '- transaction count 1 hour min: {}\n'
                  '- holders min: {}\n'
+                 '- liquidity pool locked: {}\n'
+                 '- liquidity pool burned: {}\n'
                  '- renounced: {}\n\n'
                  'To change settings press button below.')
 

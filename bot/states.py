@@ -15,7 +15,7 @@ class AdminState(StatesGroup):
     default_settings = State()
     basic_settings = State()
     holders = State()
-    renounced = State()
+    true_false = State()
     messages = State()
 
 
@@ -27,7 +27,7 @@ class SubscriberState(StatesGroup):
     main_menu = State()
     settings = State()
     holders = State()
-    renounced = State()
+    true_false = State()
     basic_settings = State()
 
 

@@ -201,11 +201,14 @@ async def get_settings_kb():
                                       callback_data='transaction_count')],
                 [InlineKeyboardButton(text='Holders',
                                       callback_data='holders')],
+                [InlineKeyboardButton(text='LP locked',
+                                      callback_data='lp_locked')],
+                [InlineKeyboardButton(text='LP burned',
+                                      callback_data='lp_burned')],
                 [InlineKeyboardButton(text='Renounced',
                                       callback_data='renounced')],
                 [InlineKeyboardButton(text='Back',
-                                      callback_data='back')]
-               ]
+                                      callback_data='back')]]
 
     kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
