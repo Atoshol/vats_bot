@@ -22,6 +22,9 @@ class UserSettings(Base):
     liquidity_min = Column(BigInteger, nullable=True, default=20000)
     liquidity_max = Column(BigInteger, nullable=True, default=200000)
 
+    lp_locked = Column(Boolean, nullable=False, default=False)
+    lp_burned = Column(Boolean, nullable=False, default=False)
+
     price_change_5_minute_min = Column(Integer, nullable=True, default=100)
     price_change_1_hour_min = Column(Integer, nullable=True, default=100)
 

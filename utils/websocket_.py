@@ -152,7 +152,7 @@ async def on_message(message):
     try:
         pairs = data.get('pairs', [])
     except Exception as e:
-        print(f'{e}')
+        print(f'Error in fetching pairs: {e}')
         return
     for i in pairs:
         address = i.get('baseToken', {}).get('address', None)
@@ -181,11 +181,10 @@ async def on_message(message):
             launch_market_cap = (start_price / float(price_usd)) * float(market_cap)
         except ZeroDivisionError:
             continue
-        print(f"Got {name}, {address}, {chain_name}")
         current_time = datetime.now().timestamp()
-        if (current_time - pair_created_at > 1286400 or
+        if (current_time - pair_created_at > 86400 or
                 await db.tokenPair_crud.check_contract(contract_address=address)):
-            print('SKIPPED ___________________________________')
+            print('Skipped ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
             continue
         if chain_name == 'solana':
             continue
@@ -247,7 +246,7 @@ async def on_message(message):
             'launch_market_cap': launch_market_cap,
             **extracted_data
         }
-
+        print(f"Got {name}, {address}, {chain_name}")
         if await token_matches_default_settings(new_data):
             go_plus = await get_data_go_plus_by_address(chain=chain_name, address=address)
             # print("GO PLUS INFO~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
@@ -270,6 +269,7 @@ async def on_message(message):
             # pprint(token_data)
             # pprint(new_data)
             message, kb = await form_message(new_data, links)
+            print('Send message to main chat')
             await send_message_to_group(message, kb)
             token = await db.tokenPair_crud.create(**new_data)
             if token is not None:
@@ -280,9 +280,41 @@ async def on_message(message):
                         "token_pair_id": token.id,
                     }
                     await db.tokenLink_crud.create(**link_data)
-        matching_users = await db.user_settings_crud.get_matching_users(new_data)
-        for user_id in matching_users:
-            await send_message_to_user(user_id, message, kb)
+        else:
+            print(f'Token {name}, didnt match default settings')
+            go_plus = await get_data_go_plus_by_address(chain=chain_name, address=address)
+            # print("GO PLUS INFO~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+            # pprint(go_plus)
+            lp_holders = go_plus.get('lp_holders')
+            if lp_holders:
+                percentage = int(sum([float(i['percent']) for i in lp_holders if i['is_locked'] == 1]) * 100)
+            else:
+                percentage = 0
+            gp = {
+                'owner_supply': go_plus.get('owner_balance', 0),
+                'owner_address': go_plus.get('creator_address', 0),
+                'total_supply': go_plus.get('total_supply', 0),
+                'liquidity_lock': percentage,
+                'top10_percentage': round(sum([float(i['percent']) for i in go_plus.get('holders', [{'percent': 0}])]),
+                                          2) * 100,
+                'holders': int(go_plus.get('holder_count', 0)),
+            }
+            new_data.update(gp)
+            # pprint(token_data)
+            # pprint(new_data)
+            message, kb = await form_message(new_data, links)
+            token = await db.tokenPair_crud.create(**new_data)
+            if token is not None:
+                for v in links:
+                    link_data = {
+                        "type": v['type'],
+                        "url": v['url'],
+                        "token_pair_id": token.id,
+                    }
+                    await db.tokenLink_crud.create(**link_data)
+            matching_users = await db.user_settings_crud.get_matching_users(new_data)
+            for user_id in matching_users:
+                await send_message_to_user(user_id, message, kb)
 
 
 async def on_connect(uri):
@@ -321,7 +353,7 @@ async def on_connect(uri):
 async def main():
     uri_links = [
         'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=bsc',
-        'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=solana',
+        # 'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=solana',
         'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=ethereum',
         'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=base',
     ]
