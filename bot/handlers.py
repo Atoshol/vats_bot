@@ -723,7 +723,9 @@ async def handle_setting_choice(call: CallbackQuery, state: FSMContext):
                            'price_change': 'Price change',
                            'transaction_count': 'Transaction count',
                            'holders': 'Holders',
-                           'renounced': 'Renounced'}
+                           'renounced': 'Renounced',
+                           'lp_locked': 'Liquidity pool locked',
+                           'lp_burned': 'Liquidity poll burned'}
 
         true_false_settings = ['Liquidity pool locked', 'Liquidity poll burned', 'Renounced']
 
