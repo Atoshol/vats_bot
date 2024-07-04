@@ -65,7 +65,7 @@ class BackToSettingsChoice(Filter):
 
 class BackToAdminSettingsChoice(Filter):
     async def __call__(self, call: CallbackQuery, state: FSMContext):
-        needed_states = ['AdminState:basic_settings', 'AdminState:renounced',
+        needed_states = ['AdminState:basic_settings', 'AdminState:true_false',
                          'AdminState:holders']
         user_state = await state.get_state()
         if call.data == 'back' and user_state in needed_states:
