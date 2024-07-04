@@ -603,8 +603,17 @@ async def handle_settings_update(message: Message, state: FSMContext):
 async def handle_renounced_choice(call: CallbackQuery, state: FSMContext):
     true_false_mapper = {'true': True,
                          'false': False}
+    state_data = await state.get_data()
+    update_setting_mapper = {'Liquidity poll burned': 'lp_burned',
+                             'Liquidity pool locked': 'lp_locked',
+                             'Renounced': 'renounced'}
 
-    settings = {'renounced': true_false_mapper.get(call.data)}
+    update_setting = state_data['update_setting']
+
+    setting_to_update = update_setting_mapper.get(update_setting)
+
+    settings = {setting_to_update: true_false_mapper.get(call.data)}
+
     await DB.default_settings_crud.update(id_=1,
                                           **settings)
 
@@ -820,8 +829,17 @@ async def handle_renounced_choice(call: CallbackQuery, state: FSMContext):
     user_id = call.from_user.id
     true_false_mapper = {'true': True,
                          'false': False}
+    state_data = await state.get_data()
+    update_setting_mapper = {'Liquidity poll burned': 'lp_burned',
+                             'Liquidity pool locked': 'lp_locked',
+                             'Renounced': 'renounced'}
 
-    settings = {'renounced': true_false_mapper.get(call.data)}
+    update_setting = state_data['update_setting']
+
+    setting_to_update = update_setting_mapper.get(update_setting)
+
+    settings = {setting_to_update: true_false_mapper.get(call.data)}
+
     await DB.user_settings_crud.update(id_=user_id,
                                        **settings)
 
