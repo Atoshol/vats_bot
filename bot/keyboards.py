@@ -215,14 +215,19 @@ async def get_settings_kb():
     return kb
 
 
-async def get_renounced_kb(user_id: int = None, admin: bool = False):
+async def get_renounced_kb(update_setting: str, user_id: int = None, admin: bool = False):
     if admin:
         settings = await DB.default_settings_crud.read(id_=1)
     else:
         settings = await DB.user_settings_crud.read(id_=user_id)
-    renounce = settings.renounced
+
+    settings_mapper = {'Liquidity pool locked': settings.lp_locked,
+                       'Liquidity poll burned': settings.lp_burned,
+                       'Renounced': settings.renounced}
+
+    current_setting = settings_mapper.get(update_setting)
     check_mark = "\u2714"
-    if renounce:
+    if current_setting:
         buttons = [[InlineKeyboardButton(text=f'True {check_mark}',
                                          callback_data='true'),
                    InlineKeyboardButton(text='False',

@@ -508,7 +508,8 @@ async def handle_setting_choice(call: CallbackQuery, state: FSMContext):
 
         elif setting in true_false_settings:
             text = texts.renounced_text.format(setting)
-            kb = await keyboards.get_renounced_kb(admin=True)
+            kb = await keyboards.get_renounced_kb(update_setting=setting,
+                                                  admin=True)
             await state.set_state(AdminState.true_false)
             await call.message.edit_text(text=text,
                                          reply_markup=kb)
@@ -750,7 +751,8 @@ async def handle_setting_choice(call: CallbackQuery, state: FSMContext):
 
         elif setting in true_false_settings:
             text = texts.renounced_text.format(setting)
-            kb = await keyboards.get_renounced_kb(user_id=call.from_user.id)
+            kb = await keyboards.get_renounced_kb(update_setting=setting,
+                                                  user_id=call.from_user.id)
             await state.set_state(SubscriberState.true_false)
             await call.message.edit_text(text=text,
                                          reply_markup=kb)
