@@ -1,4 +1,5 @@
 import asyncio
+from pprint import pprint
 
 import requests
 
@@ -9,14 +10,9 @@ url = 'https://api.quickintel.io/v1/getquickiauditfull'
 async def get_solana_data_response(chain, address):
     payload = {
         'chain': chain,
-        'address': address,
+        'tokenAddress': address,
     }
-    res = requests.post(url, data=payload)
-    print(res.json())
-
-
-if __name__ == '__main__':
-    asyncio.run(get_solana_data_response(chain='solana', address='2u7FBpY3r93aMu2F1e87xMJNwpTP8uL166HVvsbnpump'))
-
-
+    headers = {'X-QKNTL-KEY': f'650a4bb5b40a479a8533edbc42274697'}
+    res = requests.post(url, json=payload, headers=headers)
+    return res.json()
 

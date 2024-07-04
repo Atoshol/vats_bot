@@ -1,21 +1,26 @@
 import asyncio
+import random
 from datetime import datetime
 import json
 import ssl
-from pprint import pprint
 import websockets
-from concurrent.futures import ThreadPoolExecutor
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from websockets_proxy import proxy_connect
+from websockets_proxy import Proxy
 from db.facade import DB
 from utils.functions import format_percentage_change, format_value, scan_links
-from utils.get_data_cg import get_cg
 from utils.get_data_go_plus import get_data_go_plus_by_address
 from utils.get_data_honeypot import get_data_honeypot_is
+from utils.get_solana_data import get_solana_data_response
 from utils.get_token_data import get_token_data_by_address
 from bot.main import bot
+from loguru import logger
 
+
+user_file = 'user_tokens_should_be_sent.txt'
+main_file = 'main_tokens_should_be_sent.txt'
 db = DB()
-# main_chat_id = -1002185408863 # PROD
+# main_chat_id = -1002185408863  # PROD
 main_chat_id = -1002187981684
 
 
@@ -41,21 +46,31 @@ def format_large_number(number):
         return str(number)
 
 
-async def send_message_to_user(user_id, msg, kb):
-    await bot.send_message(chat_id=user_id,
-                           text=msg,
-                           reply_markup=kb,
-                           disable_web_page_preview=True)
+async def send_message_to_user(user_id, msg, kb, token_address):
+    try:
+        logger.info(f'send_message_to_user: {user_id}')
+        await bot.send_message(chat_id=user_id,
+                               text=msg,
+                               reply_markup=kb,
+                               disable_web_page_preview=True)
+        record_data = {"user_id": user_id, "token_address": token_address}
+        await db.user_token_notifications.create(**record_data)
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        with open(user_file, 'a') as f:
+            f.write(f"{timestamp} | Should be sent to {user_id}: {token_address}\n")
+    except Exception as e:
+        logger.error(f'{e}')
 
 
 async def send_message_to_group(msg, kb):
     try:
+        logger.info(f'send_message_to_group:')
         await bot.send_message(chat_id=main_chat_id,
                                text=msg,
                                reply_markup=kb,
                                disable_web_page_preview=True)
     except Exception as e:
-        print(f'{e}')
+        logger.error(f'{e}')
 
 
 async def token_matches_default_settings(token_data):
@@ -75,13 +90,23 @@ async def token_matches_default_settings(token_data):
         "transaction_count_1h": (
                 default_settings["transaction_count_1_hour_min"] <= token_data.get("transaction_count_1_hour_min",
                                                                                    0)),
-        "holders": (token_data.get("holders", 1) >= default_settings["holders_min"]),
         "renounced": (token_data.get("renounced", False) == default_settings["renounced"]),
         "pair_age": ((datetime.now().timestamp() - token_data.get("pair_created_at", 0)) <= default_settings[
             "pair_age_max"])
     }
-    # for key, value in checks.items():
-    #     print(key, value)
+    # for k, v in checks.items():
+    #     logger.info(f'{k}: {v}')
+    return all(checks.values())
+
+
+async def second_check(token_data):
+    default_settings = await db.default_settings_crud.read(1)
+    default_settings = default_settings.as_dict()
+    checks = {
+        'holders': (default_settings.get('holders_min', 1) <= token_data.get('holders', 1)),
+        'lp_burned': (default_settings.get('lp_burned', False) <= token_data.get('lp_burned', False)),
+        'lp_locked': (default_settings.get('lp_locked', False) <= token_data.get('lp_locked', False))
+    }
     return all(checks.values())
 
 
@@ -107,17 +132,19 @@ async def form_message(new_data, links):
 
 
 👨‍💻 <b>Deployer: </b><a href='{owner_link}'>{owner_str}</a>
-👤 <b>Owner:</b> {'RENOUNCED' if new_data.get('renounced', False) else owner_str}
+👤 <b>RENOUNCED:</b> <b>{"Yes" if new_data.get('renounced', False) else 'No'}</b>
 🔶 <b>Chain:</b> {new_data.get('chain_name')} | ⚖️️ Age: {int((datetime.now().timestamp() -
                                                    new_data.get('pair_created_at')) / 3600)} hours
 
 💰 <b>MC:</b> ${format_large_number(new_data.get('market_cap'))} | <b>Liq:</b> ${format_large_number(new_data.get('liquidity_usd'))}
-🔒 <b>LP Lock: </b> {new_data.get('liquidity_lock', "N/A")}% <b>Burned:</b> {new_data.get('liquidity_burned', "N/A")}%
-💳 <b>Tax:</b> B: {round(new_data.get('tax_buy', 'N/A'), 3)}% | S: {round(new_data.get('tax_sell', 'N/A'), 3)}% | T: {
-    round(new_data.get('tax_transfer', 'N/A'), 3)}%
-📈 <b>24h:</b> {format_percentage_change(new_data.get('price_change_24h'))}% | V: {format_large_number(
-        new_data.get('volume_24h'))} | B: {format_large_number(new_data.get('transaction_count_24_hour_min_buys', 'N/A'))} S: {
-    format_large_number(new_data.get('transaction_count_24_hour_min_sells', 'N/A'))}
+🔒 <b>LP Lock: </b> {new_data.get('liquidity_lock', "N/A")}% | <b>Burned:</b> {new_data.get('liquidity_burned', "N/A")}%
+💳 <b>Tax:</b> B: {round(new_data.get('tax_buy', 0), 3)}% | S: {round(new_data.get('tax_sell', 0), 3)}% | T: {
+    round(new_data.get('tax_transfer', 0), 3)}%
+📈<b>V:</b> {format_large_number(
+        new_data.get('volume_24h'))} | <b>B:</b> {format_large_number(new_data.get('transaction_count_24_hour_min_buys',
+        'N/A'))}| <b>S:</b> {format_large_number(new_data.get('transaction_count_24_hour_min_sells', 'N/A'))}
+📉<b>5m:</b>{format_percentage_change(new_data.get('price_change_5m'))}% | <b>1h: </b>{format_percentage_change
+    (new_data.get('price_change_1h'))}% | <b>24h:</b> {format_percentage_change(new_data.get('price_change_24h'))}%      
 
 💲 <b>Price:</b> ${format_value(new_data.get('price'))}
 💵 <b>Launch MC:</b> ${format_large_number(new_data.get('launch_market_cap', 'N/A'))}
@@ -125,12 +152,15 @@ async def form_message(new_data, links):
 
 📊 <b>TS:</b> {format_large_number(new_data.get('transaction_count_24_hour_min_buys', 0) +
                                   new_data.get('transaction_count_24_hour_min_sells', 0))}
-👩‍👧‍👦 <b>Holders:</b> {format_large_number(new_data.get('holders', 0))} | <b>Top 10:</b> {new_data.get('top10_percentage')}%
+👩‍👧‍👦 <b>Holders:</b> {format_large_number(new_data.get('holders', 0))} | <b>Top 10:</b> {round(new_data.get('top10_percentage'), 2)}%
 
 <code>{new_data.get('contract_address')}</code> (click to copy)
 
     """
-
+    if new_data.get('chain_name') == 'ethereum':
+        chain_name = 'ether'
+    else:
+        chain_name = new_data.get('chain_name')
     kb = [
         [
             InlineKeyboardButton(text='BananaBot', url=f'https://t.me/BananaGunSniper_bot?start=snp_falcon_{address}'),
@@ -138,7 +168,7 @@ async def form_message(new_data, links):
         ],
         [
             InlineKeyboardButton(text='DexTools', url=f"https://www.dextools.io/app/en/"
-                                                      f"{new_data.get('chain_name')}/pair-explorer/{address}"),
+                                                      f"{chain_name}/pair-explorer/{address}"),
             InlineKeyboardButton(text='DexScreener', url=f"https://dexscreener.com/{new_data.get('chain_name')}/{address}")
         ]
     ]
@@ -152,7 +182,7 @@ async def on_message(message):
     try:
         pairs = data.get('pairs', [])
     except Exception as e:
-        print(f'Error in fetching pairs: {e}')
+        logger.error(f'Error in fetching pairs: {e}')
         return
     for i in pairs:
         address = i.get('baseToken', {}).get('address', None)
@@ -184,28 +214,29 @@ async def on_message(message):
         current_time = datetime.now().timestamp()
         if (current_time - pair_created_at > 86400 or
                 await db.tokenPair_crud.check_contract(contract_address=address)):
-            print('Skipped ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
+            # logger.info(f'Skipped ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ {name} on {chain_name}')
             continue
-        if chain_name == 'solana':
-            continue
-            # token_data = await get_token_data_by_address(chain_name, address)
-        else:
-            token_data = await get_token_data_by_address(chain_name, address)
+        token_data = await get_token_data_by_address(chain_name, address)
         if isinstance(token_data, str):
             try:
                 token_data = json.loads(token_data)
             except json.JSONDecodeError:
                 token_data = {"error": "Failed to decode token data"}
-
-        risk_level_data = await get_data_honeypot_is(address=address)
-
+        if chain_name != 'solana':
+            risk_level_data = await get_data_honeypot_is(address=address)
+            risk_level_data = {
+                "tax_buy": risk_level_data.get('buy_tax', 0),
+                "tax_sell": risk_level_data.get('sell_tax', 0),
+                "tax_transfer": risk_level_data.get('transfer_tax', 0),
+                'risk_level': risk_level_data.get('risk', "N/A"),
+            }
         extracted_data = {}
         links = []
 
         if token_data.get('ll') is not None:
-            percentage = sum([i['percentage'] for i in token_data['ll']['locks'] if i['tag'] == 'Burned'])
+            liquidity_burned = sum([i['percentage'] for i in token_data['ll']['locks'] if i['tag'] == 'Burned'])
         else:
-            percentage = 0
+            liquidity_burned = 0
 
         for k, v in token_data.items():
             if isinstance(v, dict):
@@ -235,94 +266,141 @@ async def on_message(message):
             "market_cap": market_cap,
             "transaction_count_5_minute_min": transaction_count_5_minute_min_buys + transaction_count_5_minute_min_sells,
             "transaction_count_1_hour_min": transaction_count_1_hour_min_sells + transaction_count_1_hour_min_buys,
-            "tax_buy": risk_level_data.get('buy_tax', 0),
-            "tax_sell": risk_level_data.get('sell_tax', 0),
-            "tax_transfer": risk_level_data.get('transfer_tax', 0),
-            'risk_level': risk_level_data.get('risk', "N/A"),
             'transaction_count_24_hour_min_buys': transaction_count_24_hour_min_buys,
             'transaction_count_24_hour_min_sells': transaction_count_24_hour_min_sells,
             'ath_usd': 0,
-            'liquidity_burned': percentage,
+            'liquidity_burned': liquidity_burned,
             'launch_market_cap': launch_market_cap,
-            **extracted_data
+            **extracted_data,
         }
-        print(f"Got {name}, {address}, {chain_name}")
+        logger.info(f"Got {name}, {address}, {chain_name}")
         if await token_matches_default_settings(new_data):
+            if chain_name == 'solana':
+                soll = await get_solana_data_response(chain=chain_name, address=address)
+
             go_plus = await get_data_go_plus_by_address(chain=chain_name, address=address)
-            # print("GO PLUS INFO~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-            # pprint(go_plus)
             lp_holders = go_plus.get('lp_holders')
             if lp_holders:
-                percentage = int(sum([float(i['percent']) for i in lp_holders if i['is_locked'] == 1]) * 100)
+                liquidity_lock = int(sum([float(i['percent']) for i in lp_holders if i['is_locked'] == 1]) * 100)
             else:
-                percentage = 0
-            gp = {
-                'owner_supply': go_plus.get('owner_balance', 0),
-                'owner_address': go_plus.get('creator_address', 0),
-                'total_supply': go_plus.get('total_supply', 0),
-                'liquidity_lock': percentage,
-                'top10_percentage': round(sum([float(i['percent']) for i in go_plus.get('holders', [{'percent': 0}])]),
-                                          2) * 100,
-                'holders': int(go_plus.get('holder_count', 0)),
-            }
-            new_data.update(gp)
-            # pprint(token_data)
-            # pprint(new_data)
-            message, kb = await form_message(new_data, links)
-            print('Send message to main chat')
-            await send_message_to_group(message, kb)
-            token = await db.tokenPair_crud.create(**new_data)
-            if token is not None:
-                for v in links:
-                    link_data = {
-                        "type": v['type'],
-                        "url": v['url'],
-                        "token_pair_id": token.id,
-                    }
-                    await db.tokenLink_crud.create(**link_data)
+                liquidity_lock = 0
+            if chain_name != 'solana':
+                gp = {
+                    'owner_supply': go_plus.get('owner_balance', 0),
+                    'owner_address': go_plus.get('creator_address', 0),
+                    'total_supply': go_plus.get('total_supply', 0),
+                    'liquidity_lock': liquidity_lock,
+                    'lp_burned': True if liquidity_burned > 90 else False,
+                    'lp_locked': True if liquidity_lock > 90 else False,
+                    'top10_percentage': round(sum([float(i['percent']) for i in go_plus.get('holders', [{'percent': 0}])]),
+                                              2) * 100,
+                    **risk_level_data,
+                    'holders': int(go_plus.get('holder_count', 0)),
+                }
+                new_data.update(gp)
+            else:
+                soll = {
+                    'liquidity_lock': liquidity_lock,
+                    'owner_supply': 0,
+                    'owner_address': soll['quickiAudit']["contract_Creator"],
+                    'tax_buy': soll['tokenDynamicDetails']['buy_Tax'],
+                    'tax_sell': soll['tokenDynamicDetails']['sell_Tax'],
+                    'tax_transfer': soll['tokenDynamicDetails']['transfer_Tax'],
+                    'total_supply': soll['tokenDetails']['tokenSupply'],
+                    'lp_burned': True if liquidity_burned > 90 else False,
+                    'lp_locked': True if liquidity_lock > 90 else False,
+                    'top10_percentage': 0
+                }
+                new_data.update(soll)
+            if await second_check(new_data):
+                timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+                with open(main_file, 'a') as f:
+                    f.write(f"{timestamp} | Should be sent to main chat: {address}\n")
+
+                message, kb = await form_message(new_data, links)
+                logger.info('Send message to main chat')
+                await send_message_to_group(message, kb)
+                token = await db.tokenPair_crud.create(**new_data)
+                if token is not None:
+                    for v in links:
+                        link_data = {
+                            "type": v['type'],
+                            "url": v['url'],
+                            "token_pair_id": token.id,
+                        }
+                        await db.tokenLink_crud.create(**link_data)
+            else:
+                logger.warning(f'{name}, didn‘t match second check')
         else:
-            print(f'Token {name}, didnt match default settings')
+            logger.warning(f'{name}, didn‘t match default settings')
+
+        already_sent_users = await db.user_token_notifications.get_users_by_token_address(address)
+        matching_users = await db.user_settings_crud.get_matching_users(new_data)
+
+        # Filter out users who already received the token
+        users_to_notify = [user_id for user_id in matching_users if user_id not in already_sent_users]
+
+        if users_to_notify:
+
+            if chain_name == 'solana':
+                soll = await get_solana_data_response(chain=chain_name, address=address)
+
             go_plus = await get_data_go_plus_by_address(chain=chain_name, address=address)
-            # print("GO PLUS INFO~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-            # pprint(go_plus)
             lp_holders = go_plus.get('lp_holders')
             if lp_holders:
-                percentage = int(sum([float(i['percent']) for i in lp_holders if i['is_locked'] == 1]) * 100)
+                liquidity_lock = int(sum([float(i['percent']) for i in lp_holders if i['is_locked'] == 1]) * 100)
             else:
-                percentage = 0
-            gp = {
-                'owner_supply': go_plus.get('owner_balance', 0),
-                'owner_address': go_plus.get('creator_address', 0),
-                'total_supply': go_plus.get('total_supply', 0),
-                'liquidity_lock': percentage,
-                'top10_percentage': round(sum([float(i['percent']) for i in go_plus.get('holders', [{'percent': 0}])]),
-                                          2) * 100,
-                'holders': int(go_plus.get('holder_count', 0)),
-            }
-            new_data.update(gp)
-            # pprint(token_data)
-            # pprint(new_data)
+                liquidity_lock = 0
+            if chain_name != 'solana':
+                gp = {
+                    'owner_supply': go_plus.get('owner_balance', 0),
+                    'owner_address': go_plus.get('creator_address', 0),
+                    'total_supply': go_plus.get('total_supply', 0),
+                    'liquidity_lock': liquidity_lock,
+                    'lp_burned': True if liquidity_burned > 90 else False,
+                    'lp_locked': True if liquidity_lock > 90 else False,
+                    'top10_percentage': round(sum([float(i['percent']) for i in go_plus.get('holders', [{'percent': 0}])]),
+                                              2) * 100,
+                    **risk_level_data,
+                    'holders': int(go_plus.get('holder_count', 0)),
+                }
+                new_data.update(gp)
+            else:
+                soll_data = {
+                    'liquidity_lock': liquidity_lock,
+                    'owner_supply': 0,
+                    'owner_address': soll['quickiAudit'].get("contract_Creator", ''),
+                    'tax_buy': soll['tokenDynamicDetails'].get('buy_Tax', 0) or 0,
+                    'tax_sell': soll['tokenDynamicDetails'].get('sell_Tax', 0) or 0,
+                    'tax_transfer': soll['tokenDynamicDetails'].get('transfer_Tax', 0) or 0,
+                    'total_supply': soll['tokenDetails'].get('tokenSupply', 0) or 0,
+                    'lp_burned': True if liquidity_burned > 90 else False,
+                    'lp_locked': True if liquidity_lock > 90 else False,
+                    'top10_percentage': 0,
+                    'renounced': new_data.get('renounced', False)
+                }
+                # print(soll_data)
+                new_data.update(soll_data)
             message, kb = await form_message(new_data, links)
-            token = await db.tokenPair_crud.create(**new_data)
-            if token is not None:
-                for v in links:
-                    link_data = {
-                        "type": v['type'],
-                        "url": v['url'],
-                        "token_pair_id": token.id,
-                    }
-                    await db.tokenLink_crud.create(**link_data)
-            matching_users = await db.user_settings_crud.get_matching_users(new_data)
             for user_id in matching_users:
-                await send_message_to_user(user_id, message, kb)
+                if await db.user_settings_crud.second_check(new_data, user_id):
+                    await send_message_to_user(user_id, message, kb, address)
 
 
-async def on_connect(uri):
+async def load_proxies(file_path):
+    with open(file_path, 'r') as file:
+        proxies = [line.strip() for line in file]
+    return proxies
+
+
+async def get_random_proxy(proxies):
+    return random.choice(proxies)
+
+
+async def on_connect(uri, proxies):
     headers = {
         "Host": "io.dexscreener.com",
         "x-client-name": "dex-screener-app",
-        # "Cookie": "__cf_bm=XD_d..rcFEqIntyzwA6xgB3F3I54tIp1IxPse0Bl2Eo-1713211807-1.0.1.1-8DukO0ZUdbeTXbHxP0dkTYSQ.ttQ7z3dIuG8icHb5x5jgmV6uFQ5eo7I211xx0IwBlKeETnQWw_gvSPAh1OYvtLyDUl6kyUKHZ2C13iECnY",
-        # "Sec-WebSocket-Key": "dVSX78Ahq4VVu2IU1UUk/g==",
         "Sec-WebSocket-Version": "13",
         "Upgrade": "websocket",
         "Origin": "https://io.dexscreener.com",
@@ -336,31 +414,37 @@ async def on_connect(uri):
 
     while True:
         try:
-            async with websockets.connect(uri, extra_headers=headers, ssl=ssl_context) as websocket:
-                print(f"WebSocket connection opened to {uri}")
+            proxy_url = await get_random_proxy(proxies)
+            proxy_auth = f"http://{proxy_url.split(':')[2]}:{proxy_url.split(':')[3]}@{proxy_url.split(':')[0]}:{proxy_url.split(':')[1]}"
+            proxy = Proxy.from_url(proxy_auth)
+
+            async with proxy_connect(uri, proxy=proxy, extra_headers=headers, ssl=ssl_context) as websocket:
+                logger.info(f"WebSocket connection opened to {uri} via proxy {proxy_url}")
                 while True:
                     try:
                         message = await websocket.recv()
                         await on_message(message)
                     except websockets.ConnectionClosed:
-                        print("WebSocket connection closed, reconnecting...")
+                        logger.warning("WebSocket connection closed, reconnecting...")
                         break
         except Exception as e:
-            print(f"Connection failed: {e}, retrying in 5 seconds...")
+            logger.error(f"Connection failed: {e}, retrying in 5 seconds...")
             await asyncio.sleep(5)
 
 
 async def main():
     uri_links = [
         'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=bsc',
-        # 'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=solana',
         'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=ethereum',
         'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=base',
+        # 'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=solana',
     ]
 
-    tasks = [on_connect(uri) for worker_id, uri in enumerate(uri_links, start=1)]
-    await asyncio.gather(*tasks)
+    proxies = await load_proxies("proxies.txt")
 
+    tasks = [on_connect(uri, proxies) for worker_id, uri in enumerate(uri_links, start=1)]
+    await asyncio.gather(*tasks)
 
 if __name__ == "__main__":
     asyncio.run(main())
+

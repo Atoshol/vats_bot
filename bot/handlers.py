@@ -1,6 +1,9 @@
 
 import re
 import time
+
+from aiogram import F
+
 import bot.texts as texts
 import logging
 import bot.keyboards as keyboards
@@ -22,6 +25,9 @@ import bot.filters as filters
 # async def command_start_handler(message: Message) -> None:
 #     await message.answer(await escape_markdown_v2(f"Hello, {message.from_user.full_name}!"))
 
+@dp.message(F.text.startswith('get_chat_id'))
+async def message_handler(message: Message) -> None:
+    await message.answer(f'Chat id is: {message.chat.id}')
 
 # @dp.message(F.text.startswith('@pricepredictiontest_bot'))
 # async def message_handler(message: Message) -> None:
@@ -1015,6 +1021,8 @@ async def exe_bot():
         "volume_1_hour_min": 10,
         "liquidity_min": 15000,
         "liquidity_max": 400000,
+        "lp_burned": False,
+        "lp_locked": True,
         "price_change_5_minute_min": 10,
         "price_change_1_hour_min": 10,
         "transaction_count_5_minute_min": 10,

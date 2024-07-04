@@ -69,7 +69,17 @@ class UserSettingsCRUD(AsyncCRUD):
                 settings.price_change_1_hour_min <= token_data["price_change_1h"] and
                 settings.transaction_count_5_minute_min <= token_data["transaction_count_5_minute_min"] and
                 settings.transaction_count_1_hour_min <= token_data["transaction_count_1_hour_min"] and
-                token_data["holders"] >= settings.holders_min and
-                token_data["renounced"] == settings.renounced and
+                token_data.get("holders", 1) >= settings.holders_min and
+                token_data.get("renounced", False) == settings.renounced and
                 (datetime.now().timestamp() - token_data["pair_created_at"]) <= 86400
         )
+
+    async def second_check(self, token_data: Dict, user_id) -> bool:
+        user_settings = await self.read(user_id)
+        user_settings = user_settings.as_dict()
+        checks = {
+            'holders': (user_settings.get('holders_min', 1) <= token_data.get('holders', 1)),
+            'lp_burned': (user_settings.get('lp_burned', False) <= token_data.get('lp_burned', False)),
+            'lp_locked': (user_settings.get('lp_locked', False) <= token_data.get('lp_locked', False))
+        }
+        return all(checks.values())

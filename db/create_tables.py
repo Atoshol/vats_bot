@@ -7,6 +7,7 @@ from db.models.token import TokenLink, TokenPair
 from db.models.user_settings import UserSettings
 from db.models.message import Message, MessageLastIndex
 from db.models.default import Settings
+from db.models.user_token_log import UserTokenNotifications
 
 
 async def create_tables():

@@ -230,7 +230,7 @@ def format_value(value):
     if value == 0:
         return "0.00"
     value = float(value)
-    abs_value_str = f"{abs(value):.10f}".rstrip('0')
+    abs_value_str = f"{abs(value):.50f}".rstrip('0')
     integer_part, decimal_part = abs_value_str.split('.')
 
     # Find the first non-zero digit in the decimal part and add three digits after it

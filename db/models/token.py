@@ -34,6 +34,8 @@ class TokenPair(Base):
     tax_sell = Column(Float, nullable=False, default=0.0)
     tax_transfer = Column(Float, nullable=False, default=0.0)
     liquidity_lock = Column(Float, nullable=False, default=0.0)
+    lp_burned = Column(Boolean, default=False)
+    lp_locked = Column(Boolean, default=False)
     liquidity_burned = Column(Float, nullable=False, default=0.0)
     holders = Column(Integer, nullable=False, default=0)
     top10_percentage = Column(Float, nullable=False, default=0.0)
