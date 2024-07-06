@@ -20,8 +20,8 @@ from loguru import logger
 user_file = 'user_tokens_should_be_sent.txt'
 main_file = 'main_tokens_should_be_sent.txt'
 db = DB()
-# main_chat_id = -1002185408863  # PROD
-main_chat_id = -1002187981684
+main_chat_id = -1002185408863  # PROD
+# main_chat_id = -1002187981684
 
 
 def unique_dicts(dicts_list):
@@ -397,7 +397,7 @@ async def get_random_proxy(proxies):
     return random.choice(proxies)
 
 
-async def on_connect(uri, proxies):
+async def on_connect(uri):
     headers = {
         "Host": "io.dexscreener.com",
         "x-client-name": "dex-screener-app",
@@ -414,6 +414,7 @@ async def on_connect(uri, proxies):
 
     while True:
         try:
+            proxies = await load_proxies("proxies.txt")
             proxy_url = await get_random_proxy(proxies)
             proxy_auth = f"http://{proxy_url.split(':')[2]}:{proxy_url.split(':')[3]}@{proxy_url.split(':')[0]}:{proxy_url.split(':')[1]}"
             proxy = Proxy.from_url(proxy_auth)
@@ -440,9 +441,7 @@ async def main():
         # 'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=solana',
     ]
 
-    proxies = await load_proxies("proxies.txt")
-
-    tasks = [on_connect(uri, proxies) for worker_id, uri in enumerate(uri_links, start=1)]
+    tasks = [on_connect(uri) for worker_id, uri in enumerate(uri_links, start=1)]
     await asyncio.gather(*tasks)
 
 if __name__ == "__main__":
