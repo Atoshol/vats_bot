@@ -184,8 +184,13 @@ async def on_message(message):
     except Exception as e:
         logger.error(f'Error in fetching pairs: {e}')
         return
+    tokens = [(i.get('pairAddress', None), i.get('baseToken', {}).get('name', None)) for i in pairs]
+
+    logger.info(tokens)
+    logger.info(len(tokens))
+    # logger.warning(tokens)
     for i in pairs:
-        address = i.get('baseToken', {}).get('address', None)
+        address = i.get('pairAddress', None)
         name = i.get('baseToken', {}).get('name', None)
         symbol = i.get('baseToken', {}).get('symbol', None)
         price_usd = i.get('price', 0)
@@ -273,7 +278,7 @@ async def on_message(message):
             'launch_market_cap': launch_market_cap,
             **extracted_data,
         }
-        logger.info(f"Got {name}, {address}, {chain_name}")
+        # logger.info(f"Got {name}, {address}, {chain_name}")
         if await token_matches_default_settings(new_data):
             if chain_name == 'solana':
                 soll = await get_solana_data_response(chain=chain_name, address=address)
@@ -411,12 +416,13 @@ async def on_connect(uri):
     ssl_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
     ssl_context.check_hostname = False
     ssl_context.verify_mode = ssl.CERT_NONE
-
+    i = 0
     while True:
         try:
             proxies = await load_proxies("proxies.txt")
             proxy_url = await get_random_proxy(proxies)
-            proxy_auth = f"http://{proxy_url.split(':')[2]}:{proxy_url.split(':')[3]}@{proxy_url.split(':')[0]}:{proxy_url.split(':')[1]}"
+            proxy_auth = (f"http://{proxy_url.split(':')[2]}:{proxy_url.split(':')[3]}"
+                          f"@{proxy_url.split(':')[0]}:{proxy_url.split(':')[1]}")
             proxy = Proxy.from_url(proxy_auth)
 
             async with proxy_connect(uri, proxy=proxy, extra_headers=headers, ssl=ssl_context) as websocket:
@@ -424,7 +430,10 @@ async def on_connect(uri):
                 while True:
                     try:
                         message = await websocket.recv()
+                        # logger.info(message)
                         await on_message(message)
+                        logger.info(i)
+                        i += 1
                     except websockets.ConnectionClosed:
                         logger.warning("WebSocket connection closed, reconnecting...")
                         break
@@ -435,9 +444,9 @@ async def on_connect(uri):
 
 async def main():
     uri_links = [
-        'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=bsc',
-        'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=ethereum',
-        'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=base',
+        # 'wss://io.dexscreener.com/dex/screener/pairs/m5/1?filters%5BchainIds%5D%5B0%5D=bsc',
+        'wss://io.dexscreener.com/dex/screener/pairs/h24/1?rankBy[key]=pairAge&rankBy[order]=asc&filters[chainIds][0]=base',
+        # 'wss://io.dexscreener.com/dex/screener/pairs/m5/1?filters%5BchainIds%5D%5B0%5D=ethereum',
         # 'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=solana',
     ]
 
