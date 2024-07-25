@@ -3,6 +3,7 @@ from datetime import datetime
 import calendar
 from db.facade import DB
 
+
 async def messages_menu(all_messages: dict):
     buttons = []
     messages_buttons = [[InlineKeyboardButton(text=message_data['text'],
@@ -181,24 +182,22 @@ async def get_subscriber_plans_kb():
 
 
 async def get_settings_kb():
-    # -Market cap(minimum - max)
-    # -Volume 5m, 1hr(min)
-    # -Liquidity(minimum - max)
-    # -Price change 5 m, 1 hr(min)
-    # -Transaction count 5 m, 1 hr(min)
-    # -Holders(min)
-    # -Renounced? (Not all projects are renounced)
-
     buttons = [[InlineKeyboardButton(text='Market cap',
                                      callback_data='market_cap')],
-                [InlineKeyboardButton(text='Volume',
-                                      callback_data='volume')],
+                [InlineKeyboardButton(text='Volume 5 min',
+                                      callback_data='volume_5_min'),
+                 InlineKeyboardButton(text='Volume 1 hour',
+                                      callback_data='volume_1_hour')],
                 [InlineKeyboardButton(text='Liquidity',
                                       callback_data='liquidity')],
-                [InlineKeyboardButton(text='Price change',
-                                      callback_data='price_change')],
-                [InlineKeyboardButton(text='Transaction count',
-                                      callback_data='transaction_count')],
+                [InlineKeyboardButton(text='Price change 5 min',
+                                      callback_data='price_change_5_min'),
+                 InlineKeyboardButton(text='Price change 1 hour',
+                                      callback_data='price_change_1_hour')],
+                [InlineKeyboardButton(text='TC 5 min',
+                                      callback_data='transaction_count_5_min'),
+                 InlineKeyboardButton(text='TC 1 hour',
+                                      callback_data='transaction_count_1_hour')],
                 [InlineKeyboardButton(text='Holders',
                                       callback_data='holders')],
                 [InlineKeyboardButton(text='LP locked',

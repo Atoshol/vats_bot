@@ -491,16 +491,21 @@ async def handle_setting_choice(call: CallbackQuery, state: FSMContext):
 
     else:
         settings_mapper = {'market_cap': 'Market cap',
-                           'volume': 'Volume',
+                           'volume_5_min': 'Volume 5 min',
+                           'volume_1_hour': 'Volume 1 hour',
                            'liquidity': 'Liquidity',
-                           'price_change': 'Price change',
-                           'transaction_count': 'Transaction count',
+                           'price_change_5_min': 'Price change 5 min',
+                           'price_change_1_hour': 'Price change 1 hour',
+                           'transaction_count_5_min': 'Transaction count 5 min',
+                           'transaction_count_1_hour': 'Transaction count 1 hour',
                            'holders': 'Holders',
                            'renounced': 'Renounced',
                            'lp_locked': 'Liquidity pool locked',
                            'lp_burned': 'Liquidity poll burned'}
 
         true_false_settings = ['Liquidity pool locked', 'Liquidity poll burned', 'Renounced']
+        min_hour_settings = ['Volume 5 min', 'Volume 1 hour', 'Price change 5 min', 'Price change 1 hour',
+                             'Transaction count 5 min', 'Transaction count 1 hour']
 
         back_kb = await keyboards.get_back_button()
 
@@ -509,6 +514,12 @@ async def handle_setting_choice(call: CallbackQuery, state: FSMContext):
         if setting == 'Holders':
             text = texts.holders_text.format(setting)
             await state.set_state(AdminState.holders)
+            await call.message.edit_text(text=text,
+                                         reply_markup=back_kb)
+
+        elif setting in min_hour_settings:
+            text = texts.min_hour_text.format(setting)
+            await state.set_state(AdminState.min_hour_settings)
             await call.message.edit_text(text=text,
                                          reply_markup=back_kb)
 
@@ -553,6 +564,55 @@ async def handle_back_to_settings(call: CallbackQuery, state: FSMContext):
     await state.set_state(AdminState.default_settings)
 
 
+@dp.message(AdminState.min_hour_settings)
+async def handle_min_hour_update_admin(message: Message, state: FSMContext):
+    state_data = await state.get_data()
+    chosen_setting = state_data['update_setting']
+    settings_mapper = {'Volume 5 min': 'volume_5_minute_min',
+                       'Volume 1 hour': 'volume_1_hour_min',
+                       'Price change 5 min': 'price_change_5_minute_min',
+                       'Price change 1 hour': 'price_change_1_hour_min',
+                       'Transaction count 5 min': 'transaction_count_5_minute_min',
+                       'Transaction count 1 hour': 'transaction_count_1_hour_min'}
+
+    setting_to_update = settings_mapper.get(chosen_setting)
+    pattern = r'\d+(\.\d+)?'
+    value = message.text.replace(',', '.')
+
+    if re.match(pattern=pattern, string=value):
+        update_data = {setting_to_update: value}
+        await DB.default_settings_crud.update(id_=1,
+                                              **update_data)
+
+        default_settings = await DB.default_settings_crud.read(id_=1)
+        message_text = (texts.settings_updated.format(chosen_setting, value) +
+                        '\n\n' +
+                        texts.user_settings.format(default_settings.market_cap_max,
+                                                   default_settings.market_cap_min,
+                                                   default_settings.volume_5_minute_min,
+                                                   default_settings.volume_1_hour_min,
+                                                   default_settings.liquidity_min,
+                                                   default_settings.liquidity_max,
+                                                   default_settings.price_change_5_minute_min,
+                                                   default_settings.price_change_1_hour_min,
+                                                   default_settings.transaction_count_5_minute_min,
+                                                   default_settings.transaction_count_1_hour_min,
+                                                   default_settings.holders_min,
+                                                   default_settings.lp_locked,
+                                                   default_settings.lp_burned,
+                                                   default_settings.renounced))
+
+        kb = await keyboards.get_settings_kb()
+        await state.set_state(AdminState.default_settings)
+        await message.answer(text=message_text,
+                             reply_markup=kb)
+    else:
+        kb = await keyboards.get_back_button()
+        text = texts.incorrect_settings_input.format(chosen_setting, 'digits only (example - 1234)')
+        await message.answer(text=text,
+                             reply_markup=kb)
+
+
 @dp.message(AdminState.basic_settings)
 async def handle_settings_update(message: Message, state: FSMContext):
     state_data = await state.get_data()
@@ -564,7 +624,7 @@ async def handle_settings_update(message: Message, state: FSMContext):
                        'Transaction count': ['transaction_count_5_minute_min', 'transaction_count_1_hour_min']}
 
     setting_to_update = settings_mapper.get(chosen_setting)
-    pattern = '^\d+-\d+$'
+    pattern = r'^\d+-\d+$'
     updated_value = message.text.replace(' ', '')
     if re.match(pattern=pattern, string=updated_value):
         values = updated_value.split('-')
@@ -596,7 +656,6 @@ async def handle_settings_update(message: Message, state: FSMContext):
 
         kb = await keyboards.get_settings_kb()
         await state.set_state(AdminState.default_settings)
-        cur_state = await state.get_state()
         await message.answer(text=message_text,
                              reply_markup=kb)
 
@@ -734,16 +793,21 @@ async def handle_setting_choice(call: CallbackQuery, state: FSMContext):
 
     else:
         settings_mapper = {'market_cap': 'Market cap',
-                           'volume': 'Volume',
+                           'volume_5_min': 'Volume 5 min',
+                           'volume_1_hour': 'Volume 1 hour',
                            'liquidity': 'Liquidity',
-                           'price_change': 'Price change',
-                           'transaction_count': 'Transaction count',
+                           'price_change_5_min': 'Price change 5 min',
+                           'price_change_1_hour': 'Price change 1 hour',
+                           'transaction_count_5_min': 'Transaction count 5 min',
+                           'transaction_count_1_hour': 'Transaction count 1 hour',
                            'holders': 'Holders',
                            'renounced': 'Renounced',
                            'lp_locked': 'Liquidity pool locked',
                            'lp_burned': 'Liquidity poll burned'}
 
         true_false_settings = ['Liquidity pool locked', 'Liquidity poll burned', 'Renounced']
+        min_hour_settings = ['Volume 5 min', 'Volume 1 hour', 'Price change 5 min', 'Price change 1 hour',
+                             'Transaction count 5 min', 'Transaction count 1 hour']
 
         back_kb = await keyboards.get_back_button()
 
@@ -762,6 +826,12 @@ async def handle_setting_choice(call: CallbackQuery, state: FSMContext):
             await state.set_state(SubscriberState.true_false)
             await call.message.edit_text(text=text,
                                          reply_markup=kb)
+
+        elif setting in min_hour_settings:
+            text = texts.min_hour_text.format(setting)
+            await state.set_state(SubscriberState.min_hour_settings)
+            await call.message.edit_text(text=text,
+                                         reply_markup=back_kb)
 
         else:
             text = texts.basic_text.format(setting)
@@ -792,7 +862,7 @@ async def handle_settings_update(message: Message, state: FSMContext):
                        'Transaction count': ['transaction_count_5_minute_min', 'transaction_count_1_hour_min']}
 
     setting_to_update = settings_mapper.get(chosen_setting)
-    pattern = '^\d+-\d+$'
+    pattern = r'^\d+-\d+$'
     updated_value = message.text.replace(' ', '')
     if re.match(pattern=pattern, string=updated_value):
         values = updated_value.split('-')
@@ -830,6 +900,55 @@ async def handle_settings_update(message: Message, state: FSMContext):
         kb = await keyboards.get_back_button()
         text = texts.incorrect_settings_input.format(chosen_setting, 'digits - digits (example 123 - 123)')
         await message.answer(text=text, reply_markup=kb)
+
+
+@dp.message(SubscriberState.min_hour_settings)
+async def handle_min_hour_settings_subscriber(message: Message, state: FSMContext):
+    user_id = message.from_user.id
+    state_data = await state.get_data()
+    chosen_setting = state_data['update_setting']
+    settings_mapper = {'Volume 5 min': 'volume_5_minute_min',
+                       'Volume 1 hour': 'volume_1_hour_min',
+                       'Price change 5 min': 'price_change_5_minute_min',
+                       'Price change 1 hour': 'price_change_1_hour_min',
+                       'Transaction count 5 min': 'transaction_count_5_minute_min',
+                       'Transaction count 1 hour': 'transaction_count_1_hour_min'}
+
+    setting_to_update = settings_mapper.get(chosen_setting)
+    pattern = r'\d+(\.\d+)?'
+    value = message.text.replace(',', '.')
+
+    if re.match(pattern=pattern, string=value):
+        update_data = {setting_to_update: value}
+        await DB.user_settings_crud.update(id_=user_id,
+                                           **update_data)
+
+        user_settings = await DB.user_settings_crud.read(id_=user_id)
+        message_text = (texts.settings_updated.format(chosen_setting) +
+                        '\n\n' +
+                        texts.user_settings.format(user_settings.market_cap_max,
+                                                   user_settings.market_cap_min,
+                                                   user_settings.volume_5_minute_min,
+                                                   user_settings.volume_1_hour_min,
+                                                   user_settings.liquidity_min,
+                                                   user_settings.liquidity_max,
+                                                   user_settings.price_change_5_minute_min,
+                                                   user_settings.price_change_1_hour_min,
+                                                   user_settings.transaction_count_5_minute_min,
+                                                   user_settings.transaction_count_1_hour_min,
+                                                   user_settings.holders_min,
+                                                   user_settings.lp_locked,
+                                                   user_settings.lp_burned,
+                                                   user_settings.renounced))
+        kb = await keyboards.get_subscriber_menu()
+        await state.set_state(SubscriberState.main_menu)
+        await message.answer(text=message_text,
+                             reply_markup=kb)
+    else:
+        kb = await keyboards.get_back_button()
+        text = texts.incorrect_settings_input.format(chosen_setting, 'digits only (example - 1234)')
+        await message.answer(text=text,
+                             reply_markup=kb)
 
 
 @dp.callback_query(SubscriberState.true_false)

@@ -57,6 +57,9 @@ user_settings = ('Here is you current settings:\n\n'
 holders_text = ('Please update your minimum Holders amount settings\n\n'
                 '(must be digits):')
 
+min_hour_text = ('Please update your {} settings:\n\n'
+                 '(must be digits)')
+
 renounced_text = ('Please update your {} settings\n\n'
                   '(choose True or False)')
 

@@ -17,6 +17,7 @@ class AdminState(StatesGroup):
     holders = State()
     true_false = State()
     messages = State()
+    min_hour_settings = State()
 
 
 class UserState(StatesGroup):
@@ -29,6 +30,7 @@ class SubscriberState(StatesGroup):
     holders = State()
     true_false = State()
     basic_settings = State()
+    min_hour_settings = State()
 
 
 class PotentialSubscriber(StatesGroup):
