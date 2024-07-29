@@ -1,7 +1,7 @@
 import asyncio
 import random
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import ssl
 import websockets
@@ -16,6 +16,8 @@ from utils.get_solana_data import get_solana_data_response
 from utils.get_token_data import get_token_data_by_address
 from bot.main import bot
 from loguru import logger
+
+from utils.websocket_ import calculate_time_difference
 
 user_file = 'user_tokens_should_be_sent.txt'
 main_file = 'main_tokens_should_be_sent.txt'
@@ -50,23 +52,10 @@ def format_large_number(number):
             number = int(number)
     if number >= 1_000_000:
         return f"{number / 1_000_000:.1f}m"
-
     elif number >= 1_000:
         return f"{number / 1_000:.0f}k"
     else:
         return str(number)
-
-
-def calculate_time_difference(pair_created_at):
-    time_difference = datetime.now().timestamp() - pair_created_at
-    delta = timedelta(seconds=time_difference)
-    hours = delta.days * 24 + delta.seconds // 3600
-    minutes = (delta.seconds % 3600) // 60
-
-    if hours > 0:
-        return f"{hours} hours, {minutes} minutes" if minutes > 0 else f"{hours} hours"
-    else:
-        return f"{minutes} minutes"
 
 
 async def send_message_to_user(user_id, msg, kb, token_address):
@@ -107,9 +96,9 @@ async def token_matches_default_settings(token_data):
         "volume_1h": (default_settings["volume_1_hour_min"] <= token_data.get("volume_1h", 0)),
         "liquidity": (default_settings["liquidity_min"] <= token_data.get("liquidity_usd", 0) <= default_settings[
             "liquidity_max"]),
-        "price_change_5m": (default_settings["price_change_5_minute_min"] <= token_data.get("price_change_5m", 1)),
+        "price_change_5m": (default_settings["price_change_5_minute_min"] <= token_data.get("price_change_5m", 0)),
         "transaction_count_5m": (default_settings["transaction_count_5_minute_min"] <= token_data.get(
-            "transaction_count_5_minute_min", 1)),
+            "transaction_count_5_minute_min", 0)),
         "transaction_count_1h": (
                 default_settings["transaction_count_1_hour_min"] <= token_data.get("transaction_count_1_hour_min",
                                                                                    0)),
@@ -137,7 +126,7 @@ async def form_message(new_data, links):
     risk_level_link = "https://example.com/risk-level"  # Replace with actual link
 
     link_str = " | ".join([f'<a href="{link.get("url")}">' + \
-                           f'{link.get("type").capitalize()}</a>' for link in links])
+                            f'{link.get("type").capitalize()}</a>' for link in links])
     address = new_data.get('contract_address')
     owner_address = new_data.get('owner_address')
     if owner_address != 0:
@@ -145,8 +134,7 @@ async def form_message(new_data, links):
     else:
         owner_str = 'N/A'
     try:
-        owner_link = scan_links[f"{new_data.get('chain_name')}"].format(
-            owner_address) if owner_address != 'N/A' else 'N/A'
+        owner_link = scan_links[f"{new_data.get('chain_name')}"].format(owner_address) if owner_address != 'N/A' else 'N/A'
         contract_link = scan_links[f"{new_data.get('chain_name')}"].format(address)
     except KeyError:
         owner_link = scan_links['ethereum'].format(owner_address) if owner_address != 'N/A' else 'N/A'
@@ -162,12 +150,12 @@ async def form_message(new_data, links):
 💰 <b>MC:</b> ${format_large_number(new_data.get('market_cap'))} | <b>Liq:</b> ${format_large_number(new_data.get('liquidity_usd'))}
 🔒 <b>LP Lock: </b> {new_data.get('liquidity_lock', "N/A")}% | <b>Burned:</b> {new_data.get('liquidity_burned', "N/A")}%
 💳 <b>Tax:</b> B: {round(new_data.get('tax_buy', 0), 3)}% | S: {round(new_data.get('tax_sell', 0), 3)}% | T: {
-    round(new_data.get('tax_transfer', 0), 3)}%
+round(new_data.get('tax_transfer', 0), 3)}%
 📈<b>V:</b> ${format_large_number(
-        new_data.get('volume_24h'))} | <b>B:</b> {format_large_number(new_data.get('transaction_count_24_hour_min_buys',
-                                                                                   'N/A'))}| <b>S:</b> {format_large_number(new_data.get('transaction_count_24_hour_min_sells', 'N/A'))}
+    new_data.get('volume_24h'))} | <b>B:</b> {format_large_number(new_data.get('transaction_count_24_hour_min_buys',
+                                                                               'N/A'))}| <b>S:</b> {format_large_number(new_data.get('transaction_count_24_hour_min_sells', 'N/A'))}
 📉<b>5m:</b>{format_percentage_change(new_data.get('price_change_5m'))}% | <b>1h: </b>{format_percentage_change
-    (new_data.get('price_change_1h'))}% | <b>24h:</b> {format_percentage_change(new_data.get('price_change_24h'))}%      
+(new_data.get('price_change_1h'))}% | <b>24h:</b> {format_percentage_change(new_data.get('price_change_24h'))}%      
 
 💲 <b>Price:</b> ${format_value(new_data.get('price'))}
 💵 <b>Launch MC:</b> ${format_large_number(new_data.get('launch_market_cap', 'N/A'))}
@@ -178,7 +166,7 @@ async def form_message(new_data, links):
 
 <code>{new_data.get('contract_address')}</code> (click to copy)
 
-    """
+        """
     if new_data.get('chain_name') == 'ethereum':
         chain_name = 'ether'
     else:
@@ -191,8 +179,7 @@ async def form_message(new_data, links):
         [
             InlineKeyboardButton(text='DexTools', url=f"https://www.dextools.io/app/en/"
                                                       f"{chain_name}/pair-explorer/{address}"),
-            InlineKeyboardButton(text='DexScreener',
-                                 url=f"https://dexscreener.com/{new_data.get('chain_name')}/{address}")
+            InlineKeyboardButton(text='DexScreener', url=f"https://dexscreener.com/{new_data.get('chain_name')}/{address}")
         ]
     ]
     markup = InlineKeyboardMarkup(inline_keyboard=kb)
@@ -263,7 +250,7 @@ async def paginate(i):
                 extracted_data['holders'] = v['count']
     links = unique_dicts(links)
     new_data = {
-        "contract_address": ca_address,
+        "contract_address": address,
         "name": name,
         "symbol": symbol,
         "price": price_usd,
@@ -306,7 +293,7 @@ async def paginate(i):
             'lp_burned': True if liquidity_burned > 90 else False,
             'lp_locked': True if liquidity_lock > 90 else False,
             'top10_percentage':
-            round(sum([float(i['percent']) for i in go_plus.get('holders', [{'percent': 0}])]), 2) * 100,
+                round(sum([float(i['percent']) for i in go_plus.get('holders', [{'percent': 0}])]), 2) * 100,
             **risk_level_data,
             'holders': int(go_plus.get('holder_count', 0)),
         }
@@ -409,7 +396,7 @@ async def user_paginate(i, matching_users):
                 extracted_data['holders'] = v['count']
     links = unique_dicts(links)
     new_data = {
-        "contract_address": ca_address,
+        "contract_address": address,
         "name": name,
         "symbol": symbol,
         "price": price_usd,
@@ -481,14 +468,13 @@ async def user_paginate(i, matching_users):
 async def on_message_user(message, chain_name):
     data = json.loads(message)
     try:
-        pairs = data.get('pairs', [])[:chain_mapper[chain_name]]
+        pairs = data.get('pairs', [])
     except Exception as e:
         logger.error(f'Error in fetching pairs USER: {e}')
         return
     tokens = [(i.get('pairAddress', None), i.get('baseToken', {}).get('name', None)) for i in pairs]
 
     # logger.info(tokens)
-    logger.info(len(tokens))
     tasks = []
     # logger.warning(tokens)
     start_ = time.time()
@@ -561,18 +547,18 @@ async def on_message_user(message, chain_name):
 async def on_message(message, chain_name):
     data = json.loads(message)
     try:
-        pairs = data.get('pairs', [])[:chain_mapper[chain_name]]
+        pairs = data.get('pairs', [])
     except Exception as e:
         logger.error(f'Error in fetching pairs: {e}')
         return
     tokens = [(i.get('pairAddress', None), i.get('baseToken', {}).get('name', None)) for i in pairs]
 
     # logger.info(tokens)
-    logger.info(len(tokens))
+    # logger.info(len(tokens))
     tasks = []
     # logger.warning(tokens)
     start_ = time.time()
-
+    dont_first_check = []
     for i in pairs:
         address = i.get('baseToken', {}).get('address', None)
         name = i.get('baseToken', {}).get('name', None)
@@ -605,7 +591,7 @@ async def on_message(message, chain_name):
             "contract_address": address,
             "name": name,
             "symbol": symbol,
-            "priceUsd": price_usd,
+            "price": price_usd,
             "liquidity_usd": liquidity_usd,
             "chain_name": chain_name,
             "dex_id": dex_id,
@@ -622,6 +608,7 @@ async def on_message(message, chain_name):
             'transaction_count_24_hour_min_buys': transaction_count_24_hour_min_buys,
             'transaction_count_24_hour_min_sells': transaction_count_24_hour_min_sells,
         }
+
         if await token_matches_default_settings(new_data):
             # logger.info(i)
             tasks.append(paginate(i))
@@ -633,7 +620,7 @@ async def on_message(message, chain_name):
     # logger.info(len(dont_first_check))
     await asyncio.gather(*tasks)
     end = time.time()
-    logger.warning(f"Total: {end - start_}")
+    logger.warning(f"Total: {end-start_}")
 
 
 async def load_proxies(file_path):
@@ -662,7 +649,6 @@ async def on_connect(uri):
     ssl_context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
     ssl_context.check_hostname = False
     ssl_context.verify_mode = ssl.CERT_NONE
-    i = 0
     while True:
         try:
             proxies = await load_proxies("proxies.txt")
@@ -679,9 +665,7 @@ async def on_connect(uri):
                         message = await websocket.recv()
                         # logger.info(message)
                         tasks.append(on_message(message, chain_name))
-                        tasks.append(on_message_user(message, chain_name))
-                        # logger.info(i)
-                        i += 1
+                        # tasks.append(on_message_user(message, chain_name))
                         await asyncio.gather(*tasks)
                     except websockets.ConnectionClosed:
                         logger.warning("WebSocket connection closed, reconnecting...")
@@ -692,18 +676,30 @@ async def on_connect(uri):
 
 
 async def main():
-    uri_links = {
-        "base": 'wss://io.dexscreener.com/dex/screener/pairs/m5/1?rankBy[key]=pairAge&rankBy[order]=asc&filters[chainIds][0]=base',
-        "ethereum": 'wss://io.dexscreener.com/dex/screener/pairs/m5/1?rankBy[key]=pairAge&rankBy[order]=asc&filters[chainIds][0]=ethereum',
-        # "bsc": 'wss://io.dexscreener.com/dex/screener/pairs/m5/1?rankBy[key]=pairAge&rankBy[order]=asc&filters[chainIds][0]=bsc',
-        # 'wss://io.dexscreener.com/dex/screener/pairs/m5/1?filters%5BchainIds%5D%5B0%5D=bsc',
-        # 'wss://io.dexscreener.com/dex/screener/pairs/m5/1?filters%5BchainIds%5D%5B0%5D=ethereum',
-        # 'wss://io.dexscreener.com/dex/screener/pairs/h24/1?filters%5BchainIds%5D%5B0%5D=solana',
+    page_ranges = {
+        "base": range(2, 41),  # Pages 1 to 40
+        "ethereum": range(2, 6),  # Pages 1 to 5
+        # "bsc": range(2, 6),  # Pages 1 to 5
     }
 
-    tasks = [on_connect((uri, uri_links[uri])) for worker_id, uri in enumerate(uri_links, start=1)]
+    uri_links = {
+        "base": 'wss://io.dexscreener.com/dex/screener/pairs/h24/{page}?rankBy[key]=pairAge&rankBy[order]=asc&filters[chainIds][0]=base',
+        "ethereum": 'wss://io.dexscreener.com/dex/screener/pairs/h24/{page}?rankBy[key]=pairAge&rankBy[order]=asc&filters[chainIds][0]=ethereum',
+        # "bsc": 'wss://io.dexscreener.com/dex/screener/pairs/h24/{page}?rankBy[key]=pairAge&rankBy[order]=asc&filters[chainIds][0]=bsc',
+    }
+
+    tasks = []
+
+    for chain, pages in page_ranges.items():
+        for start in range(0, len(pages), 2):
+            worker_pages = pages[start:start + 2]
+            for page in worker_pages:
+                uri = uri_links[chain].format(page=page)
+                tasks.append(on_connect((chain, uri)))
+
     await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+
